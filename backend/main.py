@@ -2,13 +2,12 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import joblib
 import json
-import numpy as np
 import os
 
 
-# --------------------------------------------------
-# FastAPI Application
-# --------------------------------------------------
+# ============================================================
+# SkyGuard AI - FastAPI Backend
+# ============================================================
 
 app = FastAPI(
     title="SkyGuard AI",
@@ -17,9 +16,9 @@ app = FastAPI(
 )
 
 
-# --------------------------------------------------
-# Model Paths
-# --------------------------------------------------
+# ============================================================
+# MODEL PATHS
+# ============================================================
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -36,41 +35,50 @@ CONFIG_PATH = os.path.join(
 )
 
 
-# --------------------------------------------------
-# Load Model
-# --------------------------------------------------
+# ============================================================
+# LOAD MODEL
+# ============================================================
+
+model = None
+config = {}
+MODEL_LOADED = False
+MODEL_ERROR = None
 
 try:
     model = joblib.load(MODEL_PATH)
 
-    with open(CONFIG_PATH, "r") as f:
-        config = json.load(f)
+    with open(CONFIG_PATH, "r") as file:
+        config = json.load(file)
 
     MODEL_LOADED = True
 
 except Exception as e:
-    model = None
-    config = {}
-    MODEL_LOADED = False
     MODEL_ERROR = str(e)
 
 
-# --------------------------------------------------
-# Input Data Schema
-# --------------------------------------------------
+# ============================================================
+# INPUT SCHEMA
+# ============================================================
 
-class WeatherData(BaseModel):
+class WeatherReading(BaseModel):
     Temperature_C: float
     Pressure_hPa: float
     Humidity_percent: float
+    Rain_mm: float = 0.0
+    WindSpeed_kmh: float = 0.0
 
 
-# --------------------------------------------------
-# Root Endpoint
-# --------------------------------------------------
+class WeatherHistory(BaseModel):
+    readings: list[WeatherReading]
+
+
+# ============================================================
+# ROOT
+# ============================================================
 
 @app.get("/")
 def root():
+
     return {
         "project": "SkyGuard AI",
         "status": "Backend is running",
@@ -78,27 +86,27 @@ def root():
     }
 
 
-# --------------------------------------------------
-# Health Check
-# --------------------------------------------------
+# ============================================================
+# HEALTH CHECK
+# ============================================================
 
 @app.get("/api/health")
 def health():
 
     response = {
-        "status": "healthy",
+        "status": "healthy" if MODEL_LOADED else "model_error",
         "model_loaded": MODEL_LOADED
     }
 
-    if not MODEL_LOADED:
+    if MODEL_ERROR:
         response["model_error"] = MODEL_ERROR
 
     return response
 
 
-# --------------------------------------------------
-# Model Information
-# --------------------------------------------------
+# ============================================================
+# MODEL INFORMATION
+# ============================================================
 
 @app.get("/api/model-info")
 def model_info():
@@ -122,22 +130,60 @@ def model_info():
             "n_estimators",
             200
         ),
-        "threshold": config.get(
-            "threshold"
+        "threshold": config.get("threshold"),
+        "feature_count": len(
+            config.get("features", [])
         ),
-        "features": config.get(
-            "features",
-            []
+        "features": config.get("features", [])
+    }
+
+
+# ============================================================
+# WEATHER HISTORY
+# ============================================================
+
+@app.post("/api/weather/history")
+def weather_history(data: WeatherHistory):
+
+    if len(data.readings) == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="At least one weather reading is required."
+        )
+
+    latest = data.readings[-1]
+
+    return {
+        "status": "received",
+        "records_received": len(data.readings),
+        "latest_reading": latest.model_dump(),
+        "message": (
+            "Weather history received. "
+            "The exact training-time feature engineering "
+            "will be connected before ML prediction."
         )
     }
 
 
-# --------------------------------------------------
-# Prediction Endpoint
-# --------------------------------------------------
+# ============================================================
+# CURRENT WEATHER
+# ============================================================
+
+@app.post("/api/weather")
+def current_weather(data: WeatherReading):
+
+    return {
+        "status": "received",
+        "weather": data.model_dump()
+    }
+
+
+# ============================================================
+# PREDICTION
+# ============================================================
 
 @app.post("/api/predict")
-def predict(data: WeatherData):
+def predict(data: WeatherHistory):
 
     if not MODEL_LOADED:
         raise HTTPException(
@@ -145,21 +191,22 @@ def predict(data: WeatherData):
             detail="ML model could not be loaded."
         )
 
-    # --------------------------------------------------
-    # IMPORTANT
-    # --------------------------------------------------
-    # This endpoint is currently a basic deployment test.
-    # The trained model expects 15 engineered features.
-    # We will add the complete temporal feature
-    # engineering pipeline in the next step.
+    if len(data.readings) < 24:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "At least 24 hourly readings are required "
+                "for the 24-hour rolling features used by "
+                "the trained model."
+            )
+        )
 
     return {
-        "status": "received",
-        "message": "Weather data received successfully.",
-        "weather": {
-            "Temperature_C": data.Temperature_C,
-            "Pressure_hPa": data.Pressure_hPa,
-            "Humidity_percent": data.Humidity_percent
-        },
-        "next_step": "Complete 15-feature anomaly inference pipeline"
+        "status": "ready",
+        "records_received": len(data.readings),
+        "message": (
+            "History contains enough records for temporal "
+            "feature engineering. Exact training-time "
+            "15-feature pipeline will be connected next."
+        )
     }
