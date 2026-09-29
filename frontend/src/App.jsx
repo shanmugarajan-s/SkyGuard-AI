@@ -1072,5 +1072,12 @@ function App() {
 
           <div className="weather-meta">
 
-            <span>
-              Sta
+  <span>
+    Station: <strong>{weather.station}</strong>
+  </span>
+
+  <span>
+    Updated: <strong>{weather.timestamp}</strong>
+  </span>
+
+</div>
