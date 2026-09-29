@@ -1,6 +1,5 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-
 from pydantic import BaseModel
 from typing import List, Optional
 
@@ -10,25 +9,23 @@ import joblib
 import json
 import requests
 import os
+import time
 
 
-# =========================================================
-# SKYGUARD AI - FASTAPI BACKEND
-# =========================================================
+# ============================================================
+# SKYGUARD AI BACKEND
+# ============================================================
 
 app = FastAPI(
     title="SkyGuard AI",
-    description=(
-        "AI/ML-Based Intelligent Anomaly Detection "
-        "for Automatic Weather Stations"
-    ),
-   version="1.3.0"
+    description="AWS Intelligent Anomaly Detection API",
+    version="1.4.0"
 )
 
 
-# =========================================================
+# ============================================================
 # CORS
-# =========================================================
+# ============================================================
 
 app.add_middleware(
     CORSMiddleware,
@@ -39,9 +36,9 @@ app.add_middleware(
 )
 
 
-# =========================================================
+# ============================================================
 # PATHS
-# =========================================================
+# ============================================================
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -58,40 +55,28 @@ CONFIG_PATH = os.path.join(
 )
 
 
-# =========================================================
+# ============================================================
 # LOAD MODEL
-# =========================================================
-
-model = None
-model_loaded = False
+# ============================================================
 
 try:
     model = joblib.load(MODEL_PATH)
-    model_loaded = True
-    print("Isolation Forest model loaded successfully.")
+
+    with open(CONFIG_PATH, "r") as f:
+        config = json.load(f)
+
+    MODEL_LOADED = True
 
 except Exception as e:
-    print("Model loading error:", e)
-
-
-# =========================================================
-# LOAD CONFIG
-# =========================================================
-
-try:
-
-    with open(CONFIG_PATH, "r") as file:
-        config = json.load(file)
-
-except Exception as e:
-
-    print("Config loading error:", e)
+    model = None
     config = {}
+    MODEL_LOADED = False
+    MODEL_ERROR = str(e)
 
 
-# =========================================================
-# MODEL SETTINGS
-# =========================================================
+# ============================================================
+# MODEL CONFIGURATION
+# ============================================================
 
 THRESHOLD = config.get(
     "threshold",
@@ -123,19 +108,39 @@ FEATURES = [
 ]
 
 
-# =========================================================
-# PROTOTYPE AWS LOCATION
-# =========================================================
+# ============================================================
+# STATION
+# ============================================================
 
 STATION_NAME = "AWS_COIMBATORE_TARGET"
 
-LATITUDE = 11.0168
-LONGITUDE = 76.9558
+STATION_LAT = 11.0168
+STATION_LON = 76.9558
 
 
-# =========================================================
-# INPUT MODELS
-# =========================================================
+# ============================================================
+# WEATHER CACHE
+# ============================================================
+
+# Cache duration = 5 minutes
+CACHE_DURATION_SECONDS = 300
+
+weather_cache = {
+    "data": None,
+    "timestamp": 0
+}
+
+
+# ============================================================
+# LAST SUCCESSFUL DATA
+# ============================================================
+
+last_successful_weather = None
+
+
+# ============================================================
+# REQUEST MODELS
+# ============================================================
 
 class WeatherReading(BaseModel):
 
@@ -154,102 +159,49 @@ class WeatherHistory(BaseModel):
     records: List[WeatherReading]
 
 
-# =========================================================
-# ROOT
-# =========================================================
-
-@app.get("/")
-def root():
-
-    return {
-        "project": "SkyGuard AI",
-        "status": "Backend is running",
-        "model_loaded": model_loaded,
-        "version": "1.2.0"
-    }
-
-
-# =========================================================
-# HEALTH
-# =========================================================
-
-@app.get("/health")
-@app.get("/api/health")
-def health():
-
-    return {
-        "status": "healthy",
-        "model_loaded": model_loaded
-    }
-
-
-# =========================================================
-# MODEL INFO
-# =========================================================
-
-@app.get("/api/model-info")
-def model_info():
-
-    return {
-        "model_name": config.get(
-            "model_name",
-            "SkyGuard AI Isolation Forest"
-        ),
-
-        "model_type": config.get(
-            "model_type",
-            "IsolationForest"
-        ),
-
-        "n_estimators": config.get(
-            "n_estimators",
-            200
-        ),
-
-        "contamination": config.get(
-            "contamination",
-            "auto"
-        ),
-
-        "threshold": THRESHOLD,
-
-        "features": FEATURES,
-
-        "feature_count": len(FEATURES),
-
-        "confidence_note": config.get(
-            "confidence_note",
-            "Confidence score is a heuristic engineering score."
-        ),
-
-        "validation_note": config.get(
-            "validation_note",
-            "Prototype validation using synthetic anomaly injections."
-        )
-    }
-
-
-# =========================================================
-# OPEN-METEO WEATHER
-# =========================================================
+# ============================================================
+# WEATHER API
+# ============================================================
 
 def fetch_open_meteo_weather():
+
+    global weather_cache
+    global last_successful_weather
+
+    current_time = time.time()
+
+    # --------------------------------------------------------
+    # 1. RETURN CACHE IF STILL VALID
+    # --------------------------------------------------------
+
+    if (
+        weather_cache["data"] is not None
+        and
+        current_time - weather_cache["timestamp"]
+        < CACHE_DURATION_SECONDS
+    ):
+
+        return weather_cache["data"]
+
+
+    # --------------------------------------------------------
+    # 2. OPEN-METEO REQUEST
+    # --------------------------------------------------------
 
     url = "https://api.open-meteo.com/v1/forecast"
 
     params = {
 
-        "latitude": LATITUDE,
+        "latitude": STATION_LAT,
 
-        "longitude": LONGITUDE,
+        "longitude": STATION_LON,
 
-        "hourly": (
+        "hourly":
             "temperature_2m,"
             "relativehumidity_2m,"
             "surface_pressure,"
             "rain,"
-            "windspeed_10m"
-        ),
+            "windspeed_10m",
 
         "past_days": 2,
 
@@ -258,87 +210,197 @@ def fetch_open_meteo_weather():
         "timezone": "Asia/Kolkata"
     }
 
-    response = requests.get(
-        url,
-        params=params,
-        timeout=20
-    )
 
-    response.raise_for_status()
+    try:
 
-    data = response.json()
+        response = requests.get(
+            url,
+            params=params,
+            timeout=20
+        )
 
-    hourly = data["hourly"]
+        response.raise_for_status()
 
-    weather_df = pd.DataFrame({
-
-        "Timestamp": hourly["time"],
-
-        "Temperature_C":
-            hourly["temperature_2m"],
-
-        "Pressure_hPa":
-            hourly["surface_pressure"],
-
-        "Humidity_percent":
-            hourly["relativehumidity_2m"],
-
-        "Rain_mm":
-            hourly["rain"],
-
-        "WindSpeed_kmh":
-            hourly["windspeed_10m"]
-    })
-
-    return weather_df
+        data = response.json()
 
 
-# =========================================================
+        # ----------------------------------------------------
+        # 3. VALIDATE RESPONSE
+        # ----------------------------------------------------
+
+        if "hourly" not in data:
+
+            raise Exception(
+                "Open-Meteo response does not contain hourly data."
+            )
+
+
+        hourly = data["hourly"]
+
+        timestamps = hourly["time"]
+
+        temperatures = hourly["temperature_2m"]
+
+        pressures = hourly["surface_pressure"]
+
+        humidities = hourly["relativehumidity_2m"]
+
+        rains = hourly["rain"]
+
+        winds = hourly["windspeed_10m"]
+
+
+        records = []
+
+
+        for i in range(len(timestamps)):
+
+            records.append({
+
+                "Timestamp": timestamps[i],
+
+                "Temperature_C":
+                    temperatures[i],
+
+                "Pressure_hPa":
+                    pressures[i],
+
+                "Humidity_percent":
+                    humidities[i],
+
+                "Rain_mm":
+                    rains[i],
+
+                "WindSpeed_kmh":
+                    winds[i]
+            })
+
+
+        result = {
+
+            "status": "success",
+
+            "station": STATION_NAME,
+
+            "latitude": STATION_LAT,
+
+            "longitude": STATION_LON,
+
+            "records": records,
+
+            "source": "Open-Meteo",
+
+            "cached": False
+        }
+
+
+        # ----------------------------------------------------
+        # 4. UPDATE CACHE
+        # ----------------------------------------------------
+
+        weather_cache["data"] = result
+
+        weather_cache["timestamp"] = time.time()
+
+        last_successful_weather = result
+
+
+        return result
+
+
+    except requests.exceptions.HTTPError as e:
+
+        # ----------------------------------------------------
+        # 5. 429 FALLBACK
+        # ----------------------------------------------------
+
+        if (
+            response.status_code == 429
+            and
+            last_successful_weather is not None
+        ):
+
+            cached_result = last_successful_weather.copy()
+
+            cached_result["cached"] = True
+
+            cached_result["fallback"] = True
+
+            return cached_result
+
+
+        raise Exception(
+            f"Weather API error: {str(e)}"
+        )
+
+
+    except Exception as e:
+
+        # ----------------------------------------------------
+        # 6. GENERAL FALLBACK
+        # ----------------------------------------------------
+
+        if last_successful_weather is not None:
+
+            cached_result = last_successful_weather.copy()
+
+            cached_result["cached"] = True
+
+            cached_result["fallback"] = True
+
+            return cached_result
+
+
+        raise Exception(
+            f"Weather API error: {str(e)}"
+        )
+
+
+# ============================================================
 # FEATURE ENGINEERING
-# =========================================================
+# ============================================================
 
 def create_features(df):
 
-    data = df.copy()
+    df = df.copy()
 
-    # -----------------------------------------------------
-    # Timestamp
-    # -----------------------------------------------------
 
-    data["Timestamp"] = pd.to_datetime(
-        data["Timestamp"],
-        errors="coerce"
+    # --------------------------------------------------------
+    # TIMESTAMP
+    # --------------------------------------------------------
+
+    if "Timestamp" in df.columns:
+
+        df["Timestamp"] = pd.to_datetime(
+            df["Timestamp"],
+            errors="coerce"
+        )
+
+        df = df.sort_values(
+            "Timestamp"
+        )
+
+
+    # --------------------------------------------------------
+    # MISSING VALUE INDICATORS
+    # --------------------------------------------------------
+
+    df["Temperature_C_Missing"] = (
+        df["Temperature_C"].isna().astype(int)
     )
 
-    data = data.sort_values(
-        "Timestamp"
-    ).reset_index(drop=True)
-
-    # -----------------------------------------------------
-    # Missing indicators
-    # -----------------------------------------------------
-
-    data["Temperature_C_Missing"] = (
-        data["Temperature_C"]
-        .isna()
-        .astype(int)
+    df["Pressure_hPa_Missing"] = (
+        df["Pressure_hPa"].isna().astype(int)
     )
 
-    data["Pressure_hPa_Missing"] = (
-        data["Pressure_hPa"]
-        .isna()
-        .astype(int)
+    df["Humidity_percent_Missing"] = (
+        df["Humidity_percent"].isna().astype(int)
     )
 
-    data["Humidity_percent_Missing"] = (
-        data["Humidity_percent"]
-        .isna()
-        .astype(int)
-    )
 
-    # -----------------------------------------------------
-    # Fill missing sensor values
-    # -----------------------------------------------------
+    # --------------------------------------------------------
+    # FILL SENSOR VALUES
+    # --------------------------------------------------------
 
     sensor_columns = [
         "Temperature_C",
@@ -346,191 +408,232 @@ def create_features(df):
         "Humidity_percent"
     ]
 
-    data[sensor_columns] = (
-        data[sensor_columns]
-        .ffill()
-        .bfill()
-    )
 
-    # -----------------------------------------------------
-    # Delta features
-    # -----------------------------------------------------
+    for column in sensor_columns:
 
-    data["Temperature_C_Delta"] = (
-        data["Temperature_C"].diff()
-    )
-
-    data["Pressure_hPa_Delta"] = (
-        data["Pressure_hPa"].diff()
-    )
-
-    data["Humidity_percent_Delta"] = (
-        data["Humidity_percent"].diff()
-    )
-
-    # -----------------------------------------------------
-    # Rolling features
-    # -----------------------------------------------------
-
-    data["Temperature_C_RollingMean_24h"] = (
-        data["Temperature_C"]
-        .rolling(
-            window=24,
-            min_periods=1
+        df[column] = (
+            df[column]
+            .ffill()
+            .bfill()
         )
+
+
+    # --------------------------------------------------------
+    # DELTA FEATURES
+    # --------------------------------------------------------
+
+    df["Temperature_C_Delta"] = (
+        df["Temperature_C"].diff()
+    )
+
+    df["Pressure_hPa_Delta"] = (
+        df["Pressure_hPa"].diff()
+    )
+
+    df["Humidity_percent_Delta"] = (
+        df["Humidity_percent"].diff()
+    )
+
+
+    # --------------------------------------------------------
+    # ROLLING FEATURES
+    # --------------------------------------------------------
+
+    df["Temperature_C_RollingMean_24h"] = (
+        df["Temperature_C"]
+        .rolling(24, min_periods=1)
         .mean()
     )
 
-    data["Temperature_C_RollingStd_24h"] = (
-        data["Temperature_C"]
-        .rolling(
-            window=24,
-            min_periods=1
-        )
+    df["Temperature_C_RollingStd_24h"] = (
+        df["Temperature_C"]
+        .rolling(24, min_periods=1)
         .std()
-    )
-
-    data["Pressure_hPa_RollingMean_24h"] = (
-        data["Pressure_hPa"]
-        .rolling(
-            window=24,
-            min_periods=1
-        )
-        .mean()
-    )
-
-    data["Pressure_hPa_RollingStd_24h"] = (
-        data["Pressure_hPa"]
-        .rolling(
-            window=24,
-            min_periods=1
-        )
-        .std()
-    )
-
-    data["Humidity_percent_RollingMean_24h"] = (
-        data["Humidity_percent"]
-        .rolling(
-            window=24,
-            min_periods=1
-        )
-        .mean()
-    )
-
-    data["Humidity_percent_RollingStd_24h"] = (
-        data["Humidity_percent"]
-        .rolling(
-            window=24,
-            min_periods=1
-        )
-        .std()
-    )
-
-    # -----------------------------------------------------
-    # Final NaN cleanup
-    # -----------------------------------------------------
-
-    data[FEATURES] = (
-        data[FEATURES]
-        .replace(
-            [np.inf, -np.inf],
-            np.nan
-        )
-        .ffill()
-        .bfill()
         .fillna(0)
     )
 
-    return data
-# =========================================================
-# SENSOR HEALTH CALCULATION
-# =========================================================
+
+    df["Pressure_hPa_RollingMean_24h"] = (
+        df["Pressure_hPa"]
+        .rolling(24, min_periods=1)
+        .mean()
+    )
+
+    df["Pressure_hPa_RollingStd_24h"] = (
+        df["Pressure_hPa"]
+        .rolling(24, min_periods=1)
+        .std()
+        .fillna(0)
+    )
+
+
+    df["Humidity_percent_RollingMean_24h"] = (
+        df["Humidity_percent"]
+        .rolling(24, min_periods=1)
+        .mean()
+    )
+
+    df["Humidity_percent_RollingStd_24h"] = (
+        df["Humidity_percent"]
+        .rolling(24, min_periods=1)
+        .std()
+        .fillna(0)
+    )
+
+
+    # --------------------------------------------------------
+    # CLEAN NaN / INF
+    # --------------------------------------------------------
+
+    df = df.replace(
+        [np.inf, -np.inf],
+        np.nan
+    )
+
+    df = df.fillna(0)
+
+
+    return df
+
+
+# ============================================================
+# ML PREDICTION
+# ============================================================
+
+def run_prediction(df):
+
+    if model is None:
+
+        raise Exception(
+            "ML model is not loaded."
+        )
+
+
+    X = df[FEATURES]
+
+
+    decision_scores = model.decision_function(X)
+
+
+    anomaly_scores = -decision_scores
+
+
+    predictions = (
+        anomaly_scores >= THRESHOLD
+    )
+
+
+    result = df.copy()
+
+
+    result["Anomaly_Score"] = (
+        anomaly_scores
+    )
+
+    result["Anomaly"] = (
+        predictions
+    )
+
+
+    return result
+
+
+# ============================================================
+# SENSOR HEALTH
+# ============================================================
 
 def calculate_sensor_health(result_df):
 
     total_records = len(result_df)
 
-    if total_records == 0:
-        return {
-            "health_score": 0,
-            "health_status": "Unknown",
-            "anomaly_rate": 0,
-            "average_anomaly_persistence_hours": 0,
-            "records_processed": 0,
-            "anomalies_detected": 0
-        }
 
     anomaly_count = int(
         result_df["Anomaly"].sum()
     )
 
-    anomaly_rate = (
-        anomaly_count /
-        total_records *
-        100
-    )
 
-    # -----------------------------------------------------
-    # Calculate consecutive anomaly runs
-    # -----------------------------------------------------
+    if total_records > 0:
 
-    anomaly_values = (
-        result_df["Anomaly"]
-        .astype(int)
-        .tolist()
-    )
+        anomaly_rate = (
+            anomaly_count /
+            total_records
+        ) * 100
 
-    runs = []
+    else:
+
+        anomaly_rate = 0
+
+
+    # --------------------------------------------------------
+    # ANOMALY PERSISTENCE
+    # --------------------------------------------------------
+
+    persistence_runs = []
+
     current_run = 0
 
-    for value in anomaly_values:
 
-        if value == 1:
+    for value in result_df["Anomaly"]:
+
+        if value:
 
             current_run += 1
 
         else:
 
             if current_run > 0:
-                runs.append(current_run)
+
+                persistence_runs.append(
+                    current_run
+                )
 
             current_run = 0
 
+
     if current_run > 0:
-        runs.append(current_run)
 
-    if runs:
+        persistence_runs.append(
+            current_run
+        )
 
-        average_persistence = (
-            float(np.mean(runs))
+
+    if persistence_runs:
+
+        average_persistence = float(
+            np.mean(
+                persistence_runs
+            )
         )
 
     else:
 
-        average_persistence = 0.0
+        average_persistence = 0
 
-    # -----------------------------------------------------
-    # Engineering health score
-    #
-    # This is a dashboard score,
-    # NOT a calibrated probability.
-    # -----------------------------------------------------
+
+    # --------------------------------------------------------
+    # ENGINEERING HEALTH SCORE
+    # --------------------------------------------------------
 
     anomaly_burden = min(
         anomaly_rate * 2,
         40
     )
 
+
     persistence_burden = min(
         average_persistence * 5,
         20
     )
 
+
     health_score = (
         100
-        - anomaly_burden
-        - persistence_burden
+        -
+        anomaly_burden
+        -
+        persistence_burden
     )
+
 
     health_score = max(
         0,
@@ -540,25 +643,27 @@ def calculate_sensor_health(result_df):
         )
     )
 
-    # -----------------------------------------------------
-    # Health status
-    # -----------------------------------------------------
+
+    # --------------------------------------------------------
+    # STATUS
+    # --------------------------------------------------------
 
     if health_score >= 90:
 
-        health_status = "Healthy"
+        status = "Healthy"
 
     elif health_score >= 75:
 
-        health_status = "Good"
+        status = "Good"
 
     elif health_score >= 50:
 
-        health_status = "Warning"
+        status = "Warning"
 
     else:
 
-        health_status = "Critical"
+        status = "Critical"
+
 
     return {
 
@@ -569,7 +674,7 @@ def calculate_sensor_health(result_df):
             ),
 
         "health_status":
-            health_status,
+            status,
 
         "anomaly_rate":
             round(
@@ -590,153 +695,256 @@ def calculate_sensor_health(result_df):
             anomaly_count
     }
 
-# =========================================================
-# RUN ISOLATION FOREST
-# =========================================================
 
-def run_prediction(df):
+# ============================================================
+# ROOT
+# ============================================================
 
-    if not model_loaded or model is None:
+@app.get("/")
+def root():
 
-        raise HTTPException(
-            status_code=500,
-            detail="Isolation Forest model is not loaded."
-        )
+    return {
 
-    feature_df = create_features(df)
+        "project": "SkyGuard AI",
 
-    X = feature_df[FEATURES]
+        "status":
+            "Backend is running",
 
-    # Isolation Forest:
-    # higher decision_function = more normal
-    # lower decision_function = more anomalous
+        "model_loaded":
+            MODEL_LOADED,
 
-    decision_scores = model.decision_function(X)
-
-    anomaly_scores = -decision_scores
-
-    predictions = (
-        anomaly_scores >= THRESHOLD
-    )
-
-    feature_df["Anomaly_Score"] = (
-        anomaly_scores
-    )
-
-    feature_df["Anomaly"] = (
-        predictions
-    )
-
-    feature_df["Status"] = np.where(
-        predictions,
-        "ANOMALY",
-        "NORMAL"
-    )
-
-    return feature_df
+        "version":
+            "1.4.0"
+    }
 
 
-# =========================================================
-# LIVE WEATHER ENDPOINT
-# =========================================================
+# ============================================================
+# HEALTH
+# ============================================================
+
+@app.get("/health")
+def health():
+
+    return {
+
+        "status":
+            "healthy",
+
+        "model_loaded":
+            MODEL_LOADED
+    }
+
+
+# ============================================================
+# API HEALTH
+# ============================================================
+
+@app.get("/api/health")
+def api_health():
+
+    return {
+
+        "status":
+            "healthy",
+
+        "model_loaded":
+            MODEL_LOADED,
+
+        "version":
+            "1.4.0"
+    }
+
+
+# ============================================================
+# MODEL INFO
+# ============================================================
+
+@app.get("/api/model-info")
+def model_info():
+
+    return {
+
+        "model_name":
+            config.get(
+                "model_name",
+                "SkyGuard AI Isolation Forest"
+            ),
+
+        "model_type":
+            config.get(
+                "model_type",
+                "IsolationForest"
+            ),
+
+        "n_estimators":
+            config.get(
+                "n_estimators",
+                200
+            ),
+
+        "contamination":
+            config.get(
+                "contamination",
+                "auto"
+            ),
+
+        "threshold":
+            THRESHOLD,
+
+        "features":
+            FEATURES,
+
+        "confidence_note":
+            "Confidence score is a heuristic engineering score, not calibrated probability.",
+
+        "validation_note":
+            "Chronologically held-out prototype validation with synthetic anomaly injections."
+    }
+
+
+# ============================================================
+# WEATHER
+# ============================================================
 
 @app.get("/api/weather")
-def get_live_weather():
+def get_weather():
 
     try:
 
-        weather_df = fetch_open_meteo_weather()
+        weather = fetch_open_meteo_weather()
 
-        latest = weather_df.iloc[-1]
+        records = weather["records"]
+
+
+        if not records:
+
+            raise Exception(
+                "No weather records available."
+            )
+
+
+        latest = records[-1]
+
 
         return {
 
-            "status": "success",
+            "status":
+                "success",
 
-            "station": STATION_NAME,
+            "station":
+                weather["station"],
 
-            "location": {
-                "latitude": LATITUDE,
-                "longitude": LONGITUDE
-            },
+            "latitude":
+                weather["latitude"],
+
+            "longitude":
+                weather["longitude"],
+
+            "source":
+                weather["source"],
+
+            "cached":
+                weather.get(
+                    "cached",
+                    False
+                ),
 
             "latest": {
 
                 "Timestamp":
-                    str(latest["Timestamp"]),
+                    latest["Timestamp"],
 
                 "Temperature_C":
-                    float(latest["Temperature_C"]),
+                    latest["Temperature_C"],
 
                 "Pressure_hPa":
-                    float(latest["Pressure_hPa"]),
+                    latest["Pressure_hPa"],
 
                 "Humidity_percent":
-                    float(latest["Humidity_percent"]),
+                    latest["Humidity_percent"],
 
                 "Rain_mm":
-                    float(latest["Rain_mm"]),
+                    latest["Rain_mm"],
 
                 "WindSpeed_kmh":
-                    float(latest["WindSpeed_kmh"])
+                    latest["WindSpeed_kmh"]
             },
 
             "records":
-                weather_df.to_dict(
-                    orient="records"
-                )
+                records
         }
+
 
     except Exception as e:
 
         raise HTTPException(
-            status_code=500,
-            detail=f"Weather API error: {str(e)}"
+            status_code=503,
+            detail=str(e)
         )
 
 
-# =========================================================
-# PREDICT USER DATA
-# =========================================================
+# ============================================================
+# PREDICT
+# ============================================================
 
 @app.post("/api/predict")
-def predict_weather(
-    history: WeatherHistory
-):
+def predict_weather(history: WeatherHistory):
 
     try:
-
-        if len(history.records) == 0:
-
-            raise HTTPException(
-                status_code=400,
-                detail="At least one weather record is required."
-            )
 
         records = [
             record.model_dump()
             for record in history.records
         ]
 
+
         df = pd.DataFrame(records)
 
-        result_df = run_prediction(df)
+
+        if df.empty:
+
+            raise Exception(
+                "No weather records supplied."
+            )
+
+
+        processed_df = create_features(
+            df
+        )
+
+
+        result_df = run_prediction(
+            processed_df
+        )
+
 
         anomaly_count = int(
             result_df["Anomaly"].sum()
         )
 
-        normal_count = (
-            len(result_df) - anomaly_count
+
+        total_records = len(
+            result_df
         )
+
+
+        normal_count = (
+            total_records -
+            anomaly_count
+        )
+
 
         anomaly_percentage = (
-            anomaly_count /
-            len(result_df) *
-            100
-        )
 
-        latest = result_df.iloc[-1]
+            anomaly_count /
+            total_records *
+            100
+
+        ) if total_records else 0
+
+
+        latest_row = result_df.iloc[-1]
+
 
         return {
 
@@ -744,7 +952,7 @@ def predict_weather(
                 "prediction_successful",
 
             "records_processed":
-                len(result_df),
+                total_records,
 
             "anomalies_detected":
                 anomaly_count,
@@ -764,37 +972,44 @@ def predict_weather(
             "latest_prediction": {
 
                 "status":
-                    latest["Status"],
+                    "ANOMALY"
+                    if latest_row["Anomaly"]
+                    else "NORMAL",
 
                 "anomaly":
-                    bool(latest["Anomaly"]),
+                    bool(
+                        latest_row["Anomaly"]
+                    ),
 
                 "anomaly_score":
                     float(
-                        latest["Anomaly_Score"]
+                        latest_row[
+                            "Anomaly_Score"
+                        ]
                     ),
 
                 "threshold":
                     THRESHOLD,
 
-                "Timestamp":
-                    str(
-                        latest["Timestamp"]
-                    ),
-
                 "Temperature_C":
                     float(
-                        latest["Temperature_C"]
+                        latest_row[
+                            "Temperature_C"
+                        ]
                     ),
 
                 "Pressure_hPa":
                     float(
-                        latest["Pressure_hPa"]
+                        latest_row[
+                            "Pressure_hPa"
+                        ]
                     ),
 
                 "Humidity_percent":
                     float(
-                        latest["Humidity_percent"]
+                        latest_row[
+                            "Humidity_percent"
+                        ]
                     )
             },
 
@@ -802,189 +1017,181 @@ def predict_weather(
                 "Isolation Forest anomaly detection completed successfully."
         }
 
-    except HTTPException:
-        raise
 
     except Exception as e:
 
         raise HTTPException(
             status_code=500,
-            detail=f"Prediction failed: {str(e)}"
+            detail=str(e)
         )
 
 
-# =========================================================
-# LIVE WEATHER + AI ANOMALY DETECTION
-# =========================================================
+# ============================================================
+# LIVE ANOMALIES
+# ============================================================
 
 @app.get("/api/anomalies")
-def live_anomaly_detection():
+def get_anomalies():
 
     try:
 
-        weather_df = (
-            fetch_open_meteo_weather()
+        weather = fetch_open_meteo_weather()
+
+
+        records = weather["records"]
+
+
+        df = pd.DataFrame(records)
+
+
+        processed_df = create_features(
+            df
         )
+
 
         result_df = run_prediction(
-            weather_df
+            processed_df
         )
 
-        anomaly_count = int(
-            result_df["Anomaly"].sum()
-        )
 
-        latest = result_df.iloc[-1]
+        anomalies = []
 
-        anomalies = result_df[
-            result_df["Anomaly"]
-        ]
+
+        for _, row in result_df.iterrows():
+
+            if row["Anomaly"]:
+
+                anomalies.append({
+
+                    "Timestamp":
+                        row["Timestamp"].isoformat()
+                        if hasattr(
+                            row["Timestamp"],
+                            "isoformat"
+                        )
+                        else str(
+                            row["Timestamp"]
+                        ),
+
+                    "Temperature_C":
+                        float(
+                            row[
+                                "Temperature_C"
+                            ]
+                        ),
+
+                    "Pressure_hPa":
+                        float(
+                            row[
+                                "Pressure_hPa"
+                            ]
+                        ),
+
+                    "Humidity_percent":
+                        float(
+                            row[
+                                "Humidity_percent"
+                            ]
+                        ),
+
+                    "Anomaly_Score":
+                        float(
+                            row[
+                                "Anomaly_Score"
+                            ]
+                        )
+                })
+
 
         return {
 
-            "status": "success",
+            "status":
+                "success",
 
             "station":
                 STATION_NAME,
 
-            "records_processed":
-                len(result_df),
-
             "anomalies_detected":
-                anomaly_count,
-
-            "anomaly_percentage":
-                round(
-                    anomaly_count /
-                    len(result_df) *
-                    100,
-                    2
-                ),
-
-            "threshold":
-                THRESHOLD,
-
-            "latest": {
-
-                "Timestamp":
-                    str(
-                        latest["Timestamp"]
-                    ),
-
-                "Temperature_C":
-                    float(
-                        latest["Temperature_C"]
-                    ),
-
-                "Pressure_hPa":
-                    float(
-                        latest["Pressure_hPa"]
-                    ),
-
-                "Humidity_percent":
-                    float(
-                        latest["Humidity_percent"]
-                    ),
-
-                "Rain_mm":
-                    float(
-                        latest["Rain_mm"]
-                    ),
-
-                "WindSpeed_kmh":
-                    float(
-                        latest["WindSpeed_kmh"]
-                    ),
-
-                "Anomaly":
-                    bool(
-                        latest["Anomaly"]
-                    ),
-
-                "Status":
-                    latest["Status"],
-
-                "Anomaly_Score":
-                    float(
-                        latest["Anomaly_Score"]
-                    )
-            },
+                len(anomalies),
 
             "anomalies":
-                anomalies[
-                    [
-                        "Timestamp",
-                        "Temperature_C",
-                        "Pressure_hPa",
-                        "Humidity_percent",
-                        "Rain_mm",
-                        "WindSpeed_kmh",
-                        "Anomaly_Score",
-                        "Status"
-                    ]
-                ].to_dict(
-                    orient="records"
-                )
+                anomalies
         }
+
 
     except Exception as e:
 
         raise HTTPException(
-            status_code=500,
-            detail=(
-                "Live anomaly detection failed: "
-                + str(e)
-            )
+            status_code=503,
+            detail=str(e)
         )
-# =========================================================
+
+
+# ============================================================
 # SENSOR HEALTH
-# =========================================================
+# ============================================================
 
 @app.get("/api/sensor-health")
 def sensor_health():
 
     try:
 
-        weather_df = (
-            fetch_open_meteo_weather()
+        weather = fetch_open_meteo_weather()
+
+
+        df = pd.DataFrame(
+            weather["records"]
         )
 
-        result_df = run_prediction(
-            weather_df
+
+        processed_df = create_features(
+            df
         )
+
+
+        result_df = run_prediction(
+            processed_df
+        )
+
 
         health = calculate_sensor_health(
             result_df
         )
 
+
         return {
 
-            "status": "success",
+            "status":
+                "success",
 
             "station":
                 STATION_NAME,
 
-            "health": health,
+            "health":
+                health,
+
+            "cached":
+                weather.get(
+                    "cached",
+                    False
+                ),
 
             "note":
-                "Sensor Health Score is an engineering "
-                "dashboard score, not a calibrated probability."
-
+                "Sensor Health Score is an engineering dashboard score, not a calibrated probability."
         }
+
 
     except Exception as e:
 
         raise HTTPException(
-            status_code=500,
-            detail=(
-                "Sensor health calculation failed: "
-                + str(e)
-            )
+            status_code=503,
+            detail=f"Sensor health calculation failed: {str(e)}"
         )
 
-# =========================================================
-# RUN LOCALLY
-# =========================================================
+
+# ============================================================
+# START SERVER
+# ============================================================
 
 if __name__ == "__main__":
 
