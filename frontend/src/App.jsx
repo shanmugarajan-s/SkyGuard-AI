@@ -1,277 +1,214 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 const API_URL = "https://skyguard-ai-1-4rqi.onrender.com";
 
 function App() {
   const [loading, setLoading] = useState(false);
+  const [weatherLoading, setWeatherLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const [weather, setWeather] = useState({
+    temperature: 0,
+    pressure: 0,
+    humidity: 0,
+    rain: 0,
+    wind: 0,
+    timestamp: "--"
+  });
 
   const [result, setResult] = useState({
     status: "NORMAL",
     anomaly: false,
-    temperature: 24.4,
-    pressure: 962.6,
-    humidity: 83,
+    temperature: 0,
+    pressure: 0,
+    humidity: 0,
     rain: 0,
-    wind: 10.2,
+    wind: 0,
     anomalies: 0,
-    records: 24,
+    records: 0,
     anomalyPercentage: 0,
-    anomalyScore: -0.0797,
-    threshold: 0.0453,
-    rootCause: "No anomaly detected",
+    anomalyScore: 0,
+    threshold: 0,
+    rootCause: "Waiting for AI analysis",
     severity: "Normal",
     confidence: 0,
-    action: "Continue normal monitoring"
+    action: "Run AI analysis"
   });
 
-  const sampleWeatherData = [
-    {
-      Timestamp: "2026-09-26T00:00:00",
-      Temperature_C: 24.1,
-      Pressure_hPa: 962.1,
-      Humidity_percent: 82,
-      Rain_mm: 0,
-      WindSpeed_kmh: 7.2
-    },
-    {
-      Timestamp: "2026-09-26T01:00:00",
-      Temperature_C: 23.8,
-      Pressure_hPa: 962.4,
-      Humidity_percent: 84,
-      Rain_mm: 0,
-      WindSpeed_kmh: 6.8
-    },
-    {
-      Timestamp: "2026-09-26T02:00:00",
-      Temperature_C: 23.5,
-      Pressure_hPa: 962.2,
-      Humidity_percent: 86,
-      Rain_mm: 0,
-      WindSpeed_kmh: 6.5
-    },
-    {
-      Timestamp: "2026-09-26T03:00:00",
-      Temperature_C: 23.2,
-      Pressure_hPa: 962.0,
-      Humidity_percent: 87,
-      Rain_mm: 0,
-      WindSpeed_kmh: 6.2
-    },
-    {
-      Timestamp: "2026-09-26T04:00:00",
-      Temperature_C: 22.9,
-      Pressure_hPa: 961.8,
-      Humidity_percent: 88,
-      Rain_mm: 0,
-      WindSpeed_kmh: 6.0
-    },
-    {
-      Timestamp: "2026-09-26T05:00:00",
-      Temperature_C: 22.7,
-      Pressure_hPa: 962.1,
-      Humidity_percent: 87,
-      Rain_mm: 0,
-      WindSpeed_kmh: 6.4
-    },
-    {
-      Timestamp: "2026-09-26T06:00:00",
-      Temperature_C: 23.1,
-      Pressure_hPa: 962.5,
-      Humidity_percent: 84,
-      Rain_mm: 0,
-      WindSpeed_kmh: 7.1
-    },
-    {
-      Timestamp: "2026-09-26T07:00:00",
-      Temperature_C: 24.3,
-      Pressure_hPa: 962.7,
-      Humidity_percent: 80,
-      Rain_mm: 0,
-      WindSpeed_kmh: 8.0
-    },
-    {
-      Timestamp: "2026-09-26T08:00:00",
-      Temperature_C: 25.8,
-      Pressure_hPa: 962.9,
-      Humidity_percent: 75,
-      Rain_mm: 0,
-      WindSpeed_kmh: 9.1
-    },
-    {
-      Timestamp: "2026-09-26T09:00:00",
-      Temperature_C: 27.2,
-      Pressure_hPa: 963.1,
-      Humidity_percent: 70,
-      Rain_mm: 0,
-      WindSpeed_kmh: 10.2
-    },
-    {
-      Timestamp: "2026-09-26T10:00:00",
-      Temperature_C: 28.6,
-      Pressure_hPa: 963.0,
-      Humidity_percent: 66,
-      Rain_mm: 0,
-      WindSpeed_kmh: 11.0
-    },
-    {
-      Timestamp: "2026-09-26T11:00:00",
-      Temperature_C: 29.4,
-      Pressure_hPa: 962.8,
-      Humidity_percent: 62,
-      Rain_mm: 0,
-      WindSpeed_kmh: 12.0
-    },
-    {
-      Timestamp: "2026-09-26T12:00:00",
-      Temperature_C: 30.5,
-      Pressure_hPa: 962.6,
-      Humidity_percent: 58,
-      Rain_mm: 0,
-      WindSpeed_kmh: 13.2
-    },
-    {
-      Timestamp: "2026-09-26T13:00:00",
-      Temperature_C: 30.1,
-      Pressure_hPa: 962.4,
-      Humidity_percent: 60,
-      Rain_mm: 0,
-      WindSpeed_kmh: 14.0
-    },
-    {
-      Timestamp: "2026-09-26T14:00:00",
-      Temperature_C: 29.7,
-      Pressure_hPa: 962.2,
-      Humidity_percent: 63,
-      Rain_mm: 0,
-      WindSpeed_kmh: 14.5
-    },
-    {
-      Timestamp: "2026-09-26T15:00:00",
-      Temperature_C: 29.1,
-      Pressure_hPa: 961.9,
-      Humidity_percent: 67,
-      Rain_mm: 0,
-      WindSpeed_kmh: 15.0
-    },
-    {
-      Timestamp: "2026-09-26T16:00:00",
-      Temperature_C: 28.4,
-      Pressure_hPa: 961.7,
-      Humidity_percent: 71,
-      Rain_mm: 0,
-      WindSpeed_kmh: 14.2
-    },
-    {
-      Timestamp: "2026-09-26T17:00:00",
-      Temperature_C: 27.8,
-      Pressure_hPa: 961.8,
-      Humidity_percent: 74,
-      Rain_mm: 0,
-      WindSpeed_kmh: 13.4
-    },
-    {
-      Timestamp: "2026-09-26T18:00:00",
-      Temperature_C: 27.1,
-      Pressure_hPa: 962.0,
-      Humidity_percent: 77,
-      Rain_mm: 0,
-      WindSpeed_kmh: 12.1
-    },
-    {
-      Timestamp: "2026-09-26T19:00:00",
-      Temperature_C: 26.3,
-      Pressure_hPa: 962.2,
-      Humidity_percent: 79,
-      Rain_mm: 0,
-      WindSpeed_kmh: 11.2
-    },
-    {
-      Timestamp: "2026-09-26T20:00:00",
-      Temperature_C: 25.7,
-      Pressure_hPa: 962.4,
-      Humidity_percent: 81,
-      Rain_mm: 0,
-      WindSpeed_kmh: 10.5
-    },
-    {
-      Timestamp: "2026-09-26T21:00:00",
-      Temperature_C: 25.1,
-      Pressure_hPa: 962.5,
-      Humidity_percent: 82,
-      Rain_mm: 0,
-      WindSpeed_kmh: 9.6
-    },
-    {
-      Timestamp: "2026-09-26T22:00:00",
-      Temperature_C: 24.7,
-      Pressure_hPa: 962.5,
-      Humidity_percent: 83,
-      Rain_mm: 0,
-      WindSpeed_kmh: 8.8
-    },
-    {
-      Timestamp: "2026-09-26T23:00:00",
-      Temperature_C: 24.4,
-      Pressure_hPa: 962.6,
-      Humidity_percent: 83,
-      Rain_mm: 0,
-      WindSpeed_kmh: 8.1
+  // --------------------------------------------------
+  // LOAD LIVE WEATHER
+  // --------------------------------------------------
+
+  const loadWeather = async () => {
+    setWeatherLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch(`${API_URL}/api/weather`);
+
+      if (!response.ok) {
+        throw new Error("Weather API request failed");
+      }
+
+      const data = await response.json();
+
+      if (data.status !== "success") {
+        throw new Error("Unable to load weather data");
+      }
+
+      const latest = data.latest || {};
+
+      setWeather({
+        temperature: latest.Temperature_C ?? 0,
+        pressure: latest.Pressure_hPa ?? 0,
+        humidity: latest.Humidity_percent ?? 0,
+        rain: latest.Rain_mm ?? 0,
+        wind: latest.WindSpeed_kmh ?? 0,
+        timestamp: latest.Timestamp || "--"
+      });
+
+      // Also update weather cards immediately
+      setResult((previous) => ({
+        ...previous,
+        temperature: latest.Temperature_C ?? 0,
+        pressure: latest.Pressure_hPa ?? 0,
+        humidity: latest.Humidity_percent ?? 0,
+        rain: latest.Rain_mm ?? 0,
+        wind: latest.WindSpeed_kmh ?? 0
+      }));
+    } catch (err) {
+      console.error(err);
+
+      setError(
+        "Unable to load live weather data. Please check the backend."
+      );
+    } finally {
+      setWeatherLoading(false);
     }
-  ];
+  };
+
+  // --------------------------------------------------
+  // RUN AI ANALYSIS USING LIVE WEATHER DATA
+  // --------------------------------------------------
 
   const runAnalysis = async () => {
     setLoading(true);
+    setError("");
 
     try {
-      const response = await fetch(`${API_URL}/api/predict`, {
+      // Step 1: Get live weather records
+      const weatherResponse = await fetch(`${API_URL}/api/weather`);
+
+      if (!weatherResponse.ok) {
+        throw new Error("Unable to fetch weather data");
+      }
+
+      const weatherData = await weatherResponse.json();
+
+      if (
+        weatherData.status !== "success" ||
+        !weatherData.records ||
+        weatherData.records.length === 0
+      ) {
+        throw new Error("No weather records received");
+      }
+
+      const records = weatherData.records;
+
+      // Step 2: Send live records to ML model
+      const predictionResponse = await fetch(`${API_URL}/api/predict`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          records: sampleWeatherData
+          records: records
         })
       });
 
-      if (!response.ok) {
-        throw new Error("Backend request failed");
+      if (!predictionResponse.ok) {
+        throw new Error("Prediction request failed");
       }
 
-      const data = await response.json();
+      const data = await predictionResponse.json();
 
       const latest = data.latest_prediction || {};
+      const latestWeather = weatherData.latest || {};
+
+      const anomalyDetected = Boolean(latest.anomaly);
+
+      setWeather({
+        temperature: latestWeather.Temperature_C ?? 0,
+        pressure: latestWeather.Pressure_hPa ?? 0,
+        humidity: latestWeather.Humidity_percent ?? 0,
+        rain: latestWeather.Rain_mm ?? 0,
+        wind: latestWeather.WindSpeed_kmh ?? 0,
+        timestamp: latestWeather.Timestamp || "--"
+      });
 
       setResult({
         status: latest.status || "NORMAL",
-        anomaly: latest.anomaly || false,
-        temperature: latest.Temperature_C ?? 0,
-        pressure: latest.Pressure_hPa ?? 0,
-        humidity: latest.Humidity_percent ?? 0,
-        rain: 0,
-        wind: 8.1,
+
+        anomaly: anomalyDetected,
+
+        temperature: latestWeather.Temperature_C ?? 0,
+        pressure: latestWeather.Pressure_hPa ?? 0,
+        humidity: latestWeather.Humidity_percent ?? 0,
+        rain: latestWeather.Rain_mm ?? 0,
+        wind: latestWeather.WindSpeed_kmh ?? 0,
+
         anomalies: data.anomalies_detected ?? 0,
-        records: data.records_processed ?? 0,
-        anomalyPercentage: data.anomaly_percentage ?? 0,
+        records: data.records_processed ?? records.length,
+
+        anomalyPercentage:
+          Number(data.anomaly_percentage ?? 0).toFixed(2),
+
         anomalyScore: latest.anomaly_score ?? 0,
+
         threshold: data.threshold ?? 0,
-        rootCause: latest.anomaly
+
+        rootCause: anomalyDetected
           ? "AI detected abnormal sensor behaviour"
           : "No anomaly detected",
-        severity: latest.anomaly ? "Medium" : "Normal",
-        confidence: latest.anomaly ? 70 : 0,
-        action: latest.anomaly
+
+        severity: anomalyDetected ? "Medium" : "Normal",
+
+        // Heuristic dashboard score — not calibrated probability
+        confidence: anomalyDetected ? 70 : 0,
+
+        action: anomalyDetected
           ? "Inspect station sensors and verify readings"
           : "Continue normal monitoring"
       });
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      console.error(err);
 
-      alert(
+      setError(
         "Unable to connect to SkyGuard AI backend. Please check the Render backend."
       );
     } finally {
       setLoading(false);
     }
+  };
+
+  // --------------------------------------------------
+  // LOAD WEATHER WHEN PAGE OPENS
+  // --------------------------------------------------
+
+  useEffect(() => {
+    loadWeather();
+  }, []);
+
+  // --------------------------------------------------
+  // FORMAT TIMESTAMP
+  // --------------------------------------------------
+
+  const formatTimestamp = (timestamp) => {
+    if (!timestamp || timestamp === "--") {
+      return "--";
+    }
+
+    return timestamp.replace("T", " ");
   };
 
   return (
@@ -280,83 +217,192 @@ function App() {
       {/* HEADER */}
 
       <header className="header">
+
         <div>
           <h1>🛡️ SkyGuard AI</h1>
+
           <p>
             Intelligent Anomaly Detection for Automatic Weather Stations
           </p>
         </div>
 
         <div className="system-status">
+
           <span className="status-dot"></span>
+
           Backend Online
+
         </div>
+
       </header>
+
 
       {/* HERO */}
 
       <section className="hero">
 
         <div>
+
           <h2>Weather Station Intelligence Dashboard</h2>
 
           <p>
-            Monitor weather sensor data and detect abnormal readings using
-            Isolation Forest machine learning.
+            Monitor live weather sensor data and detect abnormal
+            readings using Isolation Forest machine learning.
           </p>
+
+          <small>
+            Station: AWS_COIMBATORE_TARGET
+          </small>
+
         </div>
 
         <button
           className="analyze-button"
           onClick={runAnalysis}
-          disabled={loading}
+          disabled={loading || weatherLoading}
         >
-          {loading ? "⏳ Analyzing..." : "🚀 Run AI Analysis"}
+
+          {loading
+            ? "⏳ Analyzing..."
+            : "🚀 Run AI Analysis"}
+
         </button>
 
       </section>
 
-      {/* WEATHER CARDS */}
+
+      {/* ERROR MESSAGE */}
+
+      {error && (
+
+        <section className="section">
+
+          <div className="detection anomaly">
+
+            <div className="detection-icon">
+              ⚠️
+            </div>
+
+            <div>
+
+              <h2>Connection Problem</h2>
+
+              <p>{error}</p>
+
+            </div>
+
+          </div>
+
+        </section>
+
+      )}
+
+
+      {/* WEATHER */}
 
       <section className="section">
 
-        <h2>🌦️ Current Weather</h2>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: "15px",
+            flexWrap: "wrap"
+          }}
+        >
+
+          <h2>🌦️ Current Weather</h2>
+
+          <span>
+            {weatherLoading
+              ? "Loading live data..."
+              : `Updated: ${formatTimestamp(weather.timestamp)}`}
+          </span>
+
+        </div>
+
 
         <div className="cards">
 
           <div className="card">
-            <div className="card-icon">🌡️</div>
+
+            <div className="card-icon">
+              🌡️
+            </div>
+
             <p>Temperature</p>
-            <h3>{result.temperature} °C</h3>
+
+            <h3>
+              {Number(weather.temperature).toFixed(1)} °C
+            </h3>
+
           </div>
 
+
           <div className="card">
-            <div className="card-icon">🔵</div>
+
+            <div className="card-icon">
+              🔵
+            </div>
+
             <p>Pressure</p>
-            <h3>{result.pressure} hPa</h3>
+
+            <h3>
+              {Number(weather.pressure).toFixed(1)} hPa
+            </h3>
+
           </div>
 
+
           <div className="card">
-            <div className="card-icon">💧</div>
+
+            <div className="card-icon">
+              💧
+            </div>
+
             <p>Humidity</p>
-            <h3>{result.humidity} %</h3>
+
+            <h3>
+              {Number(weather.humidity).toFixed(0)} %
+            </h3>
+
           </div>
 
+
           <div className="card">
-            <div className="card-icon">🌧️</div>
+
+            <div className="card-icon">
+              🌧️
+            </div>
+
             <p>Rain</p>
-            <h3>{result.rain} mm</h3>
+
+            <h3>
+              {Number(weather.rain).toFixed(1)} mm
+            </h3>
+
           </div>
 
+
           <div className="card">
-            <div className="card-icon">💨</div>
+
+            <div className="card-icon">
+              💨
+            </div>
+
             <p>Wind Speed</p>
-            <h3>{result.wind} km/h</h3>
+
+            <h3>
+              {Number(weather.wind).toFixed(1)} km/h
+            </h3>
+
           </div>
 
         </div>
 
       </section>
+
 
       {/* AI STATUS */}
 
@@ -371,21 +417,31 @@ function App() {
         >
 
           <div className="detection-icon">
-            {result.anomaly ? "⚠️" : "✅"}
+
+            {result.anomaly
+              ? "⚠️"
+              : "✅"}
+
           </div>
+
 
           <div>
 
             <h2>
+
               {result.anomaly
                 ? "ANOMALY DETECTED"
                 : "NORMAL WEATHER"}
+
             </h2>
 
+
             <p>
+
               {result.anomaly
                 ? "The AI model detected abnormal sensor behaviour."
                 : "No anomaly detected in the analyzed records."}
+
             </p>
 
           </div>
@@ -393,6 +449,7 @@ function App() {
         </div>
 
       </section>
+
 
       {/* STATISTICS */}
 
@@ -403,28 +460,60 @@ function App() {
         <div className="stats">
 
           <div className="stat">
-            <span>Records Processed</span>
-            <strong>{result.records}</strong>
+
+            <span>
+              Records Processed
+            </span>
+
+            <strong>
+              {result.records}
+            </strong>
+
           </div>
 
-          <div className="stat">
-            <span>Anomalies Detected</span>
-            <strong>{result.anomalies}</strong>
-          </div>
 
           <div className="stat">
-            <span>Anomaly Percentage</span>
-            <strong>{result.anomalyPercentage}%</strong>
+
+            <span>
+              Anomalies Detected
+            </span>
+
+            <strong>
+              {result.anomalies}
+            </strong>
+
           </div>
 
+
           <div className="stat">
-            <span>Detection Threshold</span>
-            <strong>{Number(result.threshold).toFixed(4)}</strong>
+
+            <span>
+              Anomaly Percentage
+            </span>
+
+            <strong>
+              {result.anomalyPercentage}%
+            </strong>
+
+          </div>
+
+
+          <div className="stat">
+
+            <span>
+              Detection Threshold
+            </span>
+
+            <strong>
+              {Number(result.threshold).toFixed(4)}
+            </strong>
+
           </div>
 
         </div>
 
       </section>
+
 
       {/* AI EXPLANATION */}
 
@@ -435,30 +524,126 @@ function App() {
         <div className="explanation">
 
           <div>
-            <span>Root Cause</span>
-            <strong>{result.rootCause}</strong>
+
+            <span>
+              Root Cause
+            </span>
+
+            <strong>
+              {result.rootCause}
+            </strong>
+
           </div>
 
-          <div>
-            <span>Severity</span>
-            <strong>{result.severity}</strong>
-          </div>
 
           <div>
-            <span>Confidence Score</span>
+
+            <span>
+              Severity
+            </span>
+
+            <strong>
+              {result.severity}
+            </strong>
+
+          </div>
+
+
+          <div>
+
+            <span>
+              Confidence Score (heuristic)
+            </span>
+
             <strong>
               {result.confidence}%
             </strong>
+
           </div>
 
+
           <div>
-            <span>Recommended Action</span>
-            <strong>{result.action}</strong>
+
+            <span>
+              Recommended Action
+            </span>
+
+            <strong>
+              {result.action}
+            </strong>
+
           </div>
 
         </div>
 
       </section>
+
+
+      {/* ML SCORE */}
+
+      <section className="section">
+
+        <h2>📈 Latest ML Decision</h2>
+
+        <div className="model-box">
+
+          <div>
+
+            <span>
+              Latest Status
+            </span>
+
+            <strong>
+              {result.status}
+            </strong>
+
+          </div>
+
+
+          <div>
+
+            <span>
+              Anomaly Score
+            </span>
+
+            <strong>
+              {Number(result.anomalyScore).toFixed(4)}
+            </strong>
+
+          </div>
+
+
+          <div>
+
+            <span>
+              Detection Threshold
+            </span>
+
+            <strong>
+              {Number(result.threshold).toFixed(4)}
+            </strong>
+
+          </div>
+
+
+          <div>
+
+            <span>
+              Decision
+            </span>
+
+            <strong>
+              {result.anomaly
+                ? "ANOMALY"
+                : "NORMAL"}
+            </strong>
+
+          </div>
+
+        </div>
+
+      </section>
+
 
       {/* MODEL INFORMATION */}
 
@@ -469,30 +654,62 @@ function App() {
         <div className="model-box">
 
           <div>
-            <span>Model</span>
-            <strong>Isolation Forest</strong>
+
+            <span>
+              Model
+            </span>
+
+            <strong>
+              Isolation Forest
+            </strong>
+
           </div>
 
-          <div>
-            <span>Estimators</span>
-            <strong>200</strong>
-          </div>
 
           <div>
-            <span>Contamination</span>
-            <strong>Auto</strong>
+
+            <span>
+              Estimators
+            </span>
+
+            <strong>
+              200
+            </strong>
+
           </div>
 
+
           <div>
-            <span>Features</span>
-            <strong>15</strong>
+
+            <span>
+              Contamination
+            </span>
+
+            <strong>
+              Auto
+            </strong>
+
+          </div>
+
+
+          <div>
+
+            <span>
+              Features
+            </span>
+
+            <strong>
+              15
+            </strong>
+
           </div>
 
         </div>
 
       </section>
 
-      {/* PROJECT PIPELINE */}
+
+      {/* PIPELINE */}
 
       <section className="section">
 
@@ -500,35 +717,51 @@ function App() {
 
         <div className="pipeline">
 
-          <div>🌦️<span>Weather Data</span></div>
+          <div>
+            🌦️
+            <span>Live Weather Data</span>
+          </div>
 
           <div>↓</div>
 
-          <div>🧹<span>Preprocessing</span></div>
+          <div>
+            🧹
+            <span>Preprocessing</span>
+          </div>
 
           <div>↓</div>
 
-          <div>🤖<span>ML Detection</span></div>
+          <div>
+            🤖
+            <span>ML Detection</span>
+          </div>
 
           <div>↓</div>
 
-          <div>🧠<span>Explain</span></div>
+          <div>
+            🧠
+            <span>Explain</span>
+          </div>
 
           <div>↓</div>
 
-          <div>🚨<span>Alert / Action</span></div>
+          <div>
+            🚨
+            <span>Alert / Action</span>
+          </div>
 
         </div>
 
       </section>
+
 
       {/* FOOTER */}
 
       <footer>
 
         <p>
-          SkyGuard AI • SIH Project • AI/ML-Based Intelligent Anomaly
-          Detection for Automatic Weather Stations
+          SkyGuard AI • SIH Project • AI/ML-Based Intelligent
+          Anomaly Detection for Automatic Weather Stations
         </p>
 
       </footer>
