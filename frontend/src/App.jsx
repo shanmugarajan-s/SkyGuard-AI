@@ -1,3 +1,4 @@
+import React from "react";
 import { useState } from "react";
 
 const API_URL = "https://skyguard-ai-1-4rqi.onrender.com";
