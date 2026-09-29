@@ -16,9 +16,9 @@ const WEATHER_PARAMS = {
 };
 
 
-// ==========================================================
-// SMALL CHART COMPONENT
-// ==========================================================
+// ============================================================
+// WEATHER CHART
+// ============================================================
 
 function WeatherChart({
   title,
@@ -26,7 +26,7 @@ function WeatherChart({
   records,
   valueKey,
   anomalyTimestamps,
-  formatValue = (value) => value,
+  formatValue = (value) => Number(value).toFixed(1),
 }) {
   const width = 900;
   const height = 280;
@@ -49,8 +49,12 @@ function WeatherChart({
   if (values.length === 0) {
     return (
       <div className="chart-card">
-        <h3>{title}</h3>
-        <p>No chart data available.</p>
+        <div className="chart-header">
+          <div>
+            <h3>{title}</h3>
+            <p>No chart data available.</p>
+          </div>
+        </div>
       </div>
     );
   }
@@ -64,14 +68,13 @@ function WeatherChart({
   }
 
   const range = maxValue - minValue;
-
   const extra = range * 0.12;
 
   minValue -= extra;
   maxValue += extra;
 
   const getX = (index) => {
-    if (records.length === 1) {
+    if (records.length <= 1) {
       return paddingLeft;
     }
 
@@ -117,7 +120,7 @@ function WeatherChart({
       anomalySet.has(record.Timestamp)
     );
 
-  const formatAxis = (value) =>
+  const axisValue = (value) =>
     Number(value).toFixed(
       Number.isInteger(value) ? 0 : 1
     );
@@ -148,8 +151,6 @@ function WeatherChart({
           className="weather-chart"
           preserveAspectRatio="none"
         >
-
-          {/* GRID */}
 
           {[0, 0.25, 0.5, 0.75, 1].map(
             (position) => {
@@ -183,7 +184,7 @@ function WeatherChart({
                     textAnchor="end"
                     className="chart-axis-label"
                   >
-                    {formatAxis(value)}
+                    {axisValue(value)}
                   </text>
 
                 </g>
@@ -191,15 +192,11 @@ function WeatherChart({
             }
           )}
 
-          {/* LINE */}
-
           <polyline
             points={points}
             fill="none"
             className="chart-line"
           />
-
-          {/* ANOMALY POINTS */}
 
           {anomalyPoints.map(
             ({ record, index }) => {
@@ -235,8 +232,6 @@ function WeatherChart({
             }
           )}
 
-          {/* START LABEL */}
-
           <text
             x={paddingLeft}
             y={height - 15}
@@ -246,8 +241,6 @@ function WeatherChart({
               ?.replace("T", " ")
               ?.slice(5, 16)}
           </text>
-
-          {/* END LABEL */}
 
           <text
             x={
@@ -274,9 +267,7 @@ function WeatherChart({
         <span>
           Min:{" "}
           <strong>
-            {formatValue(
-              Math.min(...values)
-            )}
+            {formatValue(Math.min(...values))}
             {unit}
           </strong>
         </span>
@@ -284,9 +275,7 @@ function WeatherChart({
         <span>
           Max:{" "}
           <strong>
-            {formatValue(
-              Math.max(...values)
-            )}
+            {formatValue(Math.max(...values))}
             {unit}
           </strong>
         </span>
@@ -303,9 +292,9 @@ function WeatherChart({
 }
 
 
-// ==========================================================
+// ============================================================
 // MAIN APP
-// ==========================================================
+// ============================================================
 
 function App() {
 
@@ -334,8 +323,7 @@ function App() {
       status: "NORMAL",
       anomaly: false,
       anomaly_score: 0,
-      threshold:
-        0.045255535895246286,
+      threshold: 0.045255535895246286,
       Temperature_C: 0,
       Pressure_hPa: 0,
       Humidity_percent: 0,
@@ -362,9 +350,9 @@ function App() {
     useState("");
 
 
-  // ==========================================================
-  // FETCH WEATHER
-  // ==========================================================
+  // ============================================================
+  // LOAD WEATHER
+  // ============================================================
 
   const loadWeather = async () => {
 
@@ -383,7 +371,6 @@ function App() {
         );
 
       if (!response.ok) {
-
         throw new Error(
           `Weather API error: ${response.status}`
         );
@@ -393,7 +380,6 @@ function App() {
         await response.json();
 
       if (!data.hourly) {
-
         throw new Error(
           "Weather API returned no hourly data."
         );
@@ -410,70 +396,58 @@ function App() {
               timestamp,
 
             Temperature_C:
-              hourly
-                .temperature_2m[
-                  index
-                ],
+              hourly.temperature_2m[index],
 
             Pressure_hPa:
-              hourly
-                .surface_pressure[
-                  index
-                ],
+              hourly.surface_pressure[index],
 
             Humidity_percent:
-              hourly
-                .relativehumidity_2m[
-                  index
-                ],
+              hourly.relativehumidity_2m[index],
 
             Rain_mm:
-              hourly.rain[index] ??
-              0,
+              hourly.rain[index] ?? 0,
 
             WindSpeed_kmh:
-              hourly
-                .windspeed_10m[
-                  index
-                ] ?? 0,
+              hourly.windspeed_10m[index] ?? 0,
+
           })
         );
 
-      setRecords(
-        weatherRecords
-      );
-
-      const latestIndex =
-        weatherRecords.length - 1;
+      setRecords(weatherRecords);
 
       const latest =
         weatherRecords[
-          latestIndex
+          weatherRecords.length - 1
         ];
 
-      setWeather({
+      if (latest) {
 
-        temperature:
-          latest.Temperature_C,
+        setWeather({
 
-        pressure:
-          latest.Pressure_hPa,
+          temperature:
+            latest.Temperature_C,
 
-        humidity:
-          latest.Humidity_percent,
+          pressure:
+            latest.Pressure_hPa,
 
-        rain:
-          latest.Rain_mm,
+          humidity:
+            latest.Humidity_percent,
 
-        wind:
-          latest.WindSpeed_kmh,
+          rain:
+            latest.Rain_mm,
 
-        timestamp:
-          latest.Timestamp,
+          wind:
+            latest.WindSpeed_kmh,
 
-        station:
-          "AWS_COIMBATORE_TARGET",
-      });
+          timestamp:
+            latest.Timestamp,
+
+          station:
+            "AWS_COIMBATORE_TARGET",
+
+        });
+
+      }
 
       return weatherRecords;
 
@@ -493,9 +467,9 @@ function App() {
   };
 
 
-  // ==========================================================
-  // FETCH ANOMALY DETAILS
-  // ==========================================================
+  // ============================================================
+  // LOAD ANOMALY DETAILS
+  // ============================================================
 
   const loadAnomalies = async (
     weatherRecords
@@ -518,15 +492,18 @@ function App() {
               records:
                 weatherRecords,
             }),
+
           }
         );
 
       if (!response.ok) {
 
         console.warn(
-          "Anomaly details endpoint returned:",
+          "Anomaly endpoint returned:",
           response.status
         );
+
+        setAnomalyRecords([]);
 
         return;
       }
@@ -534,22 +511,12 @@ function App() {
       const data =
         await response.json();
 
-      /*
-       * The backend may return the anomaly
-       * list under different names depending
-       * on the response structure.
-       */
-
       const possibleLists = [
 
         data.anomalies,
-
         data.records,
-
         data.anomaly_records,
-
         data.data,
-
         data.results,
 
       ];
@@ -566,8 +533,10 @@ function App() {
         ) {
 
           list = candidate;
+
           break;
         }
+
       }
 
       if (!list) {
@@ -576,12 +545,6 @@ function App() {
 
         return;
       }
-
-      /*
-       * Convert backend anomaly records
-       * into timestamps that match the
-       * Open-Meteo records.
-       */
 
       const timestamps =
         list
@@ -613,19 +576,16 @@ function App() {
         err
       );
 
-      /*
-       * This should NOT break the
-       * main dashboard.
-       */
-
       setAnomalyRecords([]);
+
     }
+
   };
 
 
-  // ==========================================================
+  // ============================================================
   // RUN ML ANALYSIS
-  // ==========================================================
+  // ============================================================
 
   const runAnalysis = async (
     weatherRecords = records
@@ -645,12 +605,13 @@ function App() {
         throw new Error(
           "No weather records available."
         );
+
       }
 
 
-      // ------------------------------------------------------
+      // -------------------------------
       // PREDICTION
-      // ------------------------------------------------------
+      // -------------------------------
 
       const response =
         await fetch(
@@ -667,9 +628,9 @@ function App() {
               records:
                 weatherRecords,
             }),
+
           }
         );
-
 
       if (!response.ok) {
 
@@ -679,8 +640,8 @@ function App() {
         throw new Error(
           `AI API error ${response.status}: ${errorText}`
         );
-      }
 
+      }
 
       const prediction =
         await response.json();
@@ -690,18 +651,18 @@ function App() {
       );
 
 
-      // ------------------------------------------------------
+      // -------------------------------
       // ANOMALY DETAILS
-      // ------------------------------------------------------
+      // -------------------------------
 
       await loadAnomalies(
         weatherRecords
       );
 
 
-      // ------------------------------------------------------
+      // -------------------------------
       // SENSOR HEALTH
-      // ------------------------------------------------------
+      // -------------------------------
 
       const healthResponse =
         await fetch(
@@ -718,27 +679,24 @@ function App() {
               records:
                 weatherRecords,
             }),
+
           }
         );
 
-
-      if (
-        healthResponse.ok
-      ) {
+      if (healthResponse.ok) {
 
         const healthData =
           await healthResponse.json();
 
-        if (
-          healthData.health
-        ) {
+        if (healthData.health) {
 
           setSensorHealth(
             healthData.health
           );
-        }
-      }
 
+        }
+
+      }
 
       return prediction;
 
@@ -759,12 +717,13 @@ function App() {
 
       setAnalyzing(false);
     }
+
   };
 
 
-  // ==========================================================
+  // ============================================================
   // INITIAL LOAD
-  // ==========================================================
+  // ============================================================
 
   useEffect(() => {
 
@@ -792,7 +751,9 @@ function App() {
         } finally {
 
           setLoading(false);
+
         }
+
       };
 
     initialize();
@@ -800,9 +761,9 @@ function App() {
   }, []);
 
 
-  // ==========================================================
+  // ============================================================
   // MANUAL ANALYSIS
-  // ==========================================================
+  // ============================================================
 
   const handleAnalyze =
     async () => {
@@ -819,13 +780,15 @@ function App() {
       } catch (err) {
 
         console.error(err);
+
       }
+
     };
 
 
-  // ==========================================================
+  // ============================================================
   // DERIVED DATA
-  // ==========================================================
+  // ============================================================
 
   const isAnomaly =
     result?.latest_prediction?.anomaly;
@@ -839,10 +802,8 @@ function App() {
   const processedCount =
     result?.records_processed ?? 0;
 
-
-  /*
-   * Timestamp set used by charts.
-   */
+  const anomalyPercentage =
+    result?.anomaly_percentage ?? 0;
 
   const anomalyTimestamps =
     useMemo(
@@ -855,17 +816,17 @@ function App() {
     );
 
 
-  // ==========================================================
+  // ============================================================
   // UI
-  // ==========================================================
+  // ============================================================
 
   return (
 
     <div className="app">
 
-      {/* ================================================== */}
+      {/* ====================================================== */}
       {/* HEADER */}
-      {/* ================================================== */}
+      {/* ====================================================== */}
 
       <header className="header">
 
@@ -904,9 +865,9 @@ function App() {
       </header>
 
 
-      {/* ================================================== */}
+      {/* ====================================================== */}
       {/* MAIN */}
-      {/* ================================================== */}
+      {/* ====================================================== */}
 
       <main className="container">
 
@@ -944,7 +905,6 @@ function App() {
 
           </div>
 
-
           <button
             className="analyze-button"
             onClick={handleAnalyze}
@@ -963,9 +923,9 @@ function App() {
         </section>
 
 
-        {/* ================================================= */}
+        {/* ==================================================== */}
         {/* LIVE WEATHER */}
-        {/* ================================================= */}
+        {/* ==================================================== */}
 
         <section className="section">
 
@@ -1072,23 +1032,889 @@ function App() {
 
           <div className="weather-meta">
 
-  <span>
-    Station: <strong>{weather.station}</strong>
-  </span>
+            <span>
+              Station:
+              {" "}
+              <strong>
+                {weather.station}
+              </strong>
+            </span>
 
-  <span>
-    Updated: <strong>{weather.timestamp}</strong>
-  </span>
+            <span>
+              Updated:
+              {" "}
+              <strong>
+                {weather.timestamp}
+              </strong>
+            </span>
 
-        </div>
-      </section>
-    </main>
+          </div>
 
-    <footer>
-      ...
-    </footer>
-  </div>
-);
+        </section>
+
+
+        {/* ==================================================== */}
+        {/* WEATHER TREND */}
+        {/* ==================================================== */}
+
+        <section className="section">
+
+          <div className="section-heading">
+
+            <div>
+
+              <h2>
+                Weather Trend & AI Anomalies
+              </h2>
+
+              <p>
+                Recent weather observations with
+                detected AI anomalies
+              </p>
+
+            </div>
+
+            <span className="anomaly-count-badge">
+              ⚠ {anomalyCount} anomalies
+            </span>
+
+          </div>
+
+
+          <div className="charts-grid">
+
+            <WeatherChart
+              title="Temperature Trend"
+              unit="°C"
+              records={records}
+              valueKey="Temperature_C"
+              anomalyTimestamps={
+                anomalyTimestamps
+              }
+            />
+
+            <WeatherChart
+              title="Pressure Trend"
+              unit=" hPa"
+              records={records}
+              valueKey="Pressure_hPa"
+              anomalyTimestamps={
+                anomalyTimestamps
+              }
+            />
+
+            <WeatherChart
+              title="Humidity Trend"
+              unit="%"
+              records={records}
+              valueKey="Humidity_percent"
+              anomalyTimestamps={
+                anomalyTimestamps
+              }
+            />
+
+          </div>
+
+
+          {/* ANOMALY DETAILS */}
+
+          {anomalyRecords.length > 0 && (
+
+            <div className="anomaly-details">
+
+              <div className="anomaly-details-header">
+
+                <div>
+
+                  <h3>
+                    AI Anomaly Details
+                  </h3>
+
+                  <p>
+                    Weather observations identified
+                    as anomalous by the ML system.
+                  </p>
+
+                </div>
+
+                <strong>
+                  {anomalyRecords.length}
+                </strong>
+
+              </div>
+
+
+              <div className="anomaly-table-wrapper">
+
+                <table className="anomaly-table">
+
+                  <thead>
+
+                    <tr>
+
+                      <th>
+                        Timestamp
+                      </th>
+
+                      <th>
+                        Temperature
+                      </th>
+
+                      <th>
+                        Pressure
+                      </th>
+
+                      <th>
+                        Humidity
+                      </th>
+
+                      <th>
+                        Rain
+                      </th>
+
+                      <th>
+                        Status
+                      </th>
+
+                    </tr>
+
+                  </thead>
+
+
+                  <tbody>
+
+                    {anomalyRecords
+                      .slice(0, 20)
+                      .map(
+                        (record, index) => (
+
+                          <tr
+                            key={`${record.Timestamp}-${index}`}
+                          >
+
+                            <td>
+                              {record.Timestamp}
+                            </td>
+
+                            <td>
+                              {record.Temperature_C}
+                              °C
+                            </td>
+
+                            <td>
+                              {record.Pressure_hPa}
+                              {" "}hPa
+                            </td>
+
+                            <td>
+                              {record.Humidity_percent}
+                              %
+                            </td>
+
+                            <td>
+                              {record.Rain_mm}
+                              {" "}mm
+                            </td>
+
+                            <td>
+
+                              <span className="anomaly-status">
+                                ANOMALY
+                              </span>
+
+                            </td>
+
+                          </tr>
+
+                        )
+                      )}
+
+                  </tbody>
+
+                </table>
+
+              </div>
+
+
+              {anomalyRecords.length > 20 && (
+
+                <p className="table-note">
+                  Showing first 20 anomaly records.
+                </p>
+
+              )}
+
+            </div>
+
+          )}
+
+        </section>
+
+
+        {/* ==================================================== */}
+        {/* AI DETECTION */}
+        {/* ==================================================== */}
+
+        <section className="section">
+
+          <div className="section-heading">
+
+            <div>
+
+              <h2>
+                AI Detection
+              </h2>
+
+              <p>
+                Latest machine learning decision
+              </p>
+
+            </div>
+
+            <span
+              className={
+                isAnomaly
+                  ? "live-badge"
+                  : "live-badge"
+              }
+            >
+              {isAnomaly
+                ? "● ANOMALY"
+                : "● NORMAL"}
+            </span>
+
+          </div>
+
+
+          <div className="detection-card">
+
+            <div className="detection-status">
+
+              <div className="detection-icon">
+                {isAnomaly ? "⚠" : "✓"}
+              </div>
+
+              <div>
+
+                <h3>
+                  {isAnomaly
+                    ? "ANOMALY DETECTED"
+                    : "NORMAL"}
+                </h3>
+
+                <p>
+                  {isAnomaly
+                    ? "The latest weather observation differs from the learned normal pattern."
+                    : "The latest weather observation is within the learned normal pattern."}
+                </p>
+
+              </div>
+
+            </div>
+
+
+            <div className="detection-values">
+
+              <div>
+                <span>
+                  Temperature
+                </span>
+
+                <strong>
+                  {result
+                    ?.latest_prediction
+                    ?.Temperature_C ?? 0}
+                  °C
+                </strong>
+              </div>
+
+
+              <div>
+                <span>
+                  Pressure
+                </span>
+
+                <strong>
+                  {result
+                    ?.latest_prediction
+                    ?.Pressure_hPa ?? 0}
+                  {" "}hPa
+                </strong>
+              </div>
+
+
+              <div>
+                <span>
+                  Humidity
+                </span>
+
+                <strong>
+                  {result
+                    ?.latest_prediction
+                    ?.Humidity_percent ?? 0}
+                  %
+                </strong>
+              </div>
+
+            </div>
+
+          </div>
+
+        </section>
+
+
+        {/* ==================================================== */}
+        {/* ANALYSIS SUMMARY */}
+        {/* ==================================================== */}
+
+        <section className="section">
+
+          <div className="section-heading">
+
+            <div>
+
+              <h2>
+                Analysis Summary
+              </h2>
+
+              <p>
+                Current ML analysis statistics
+              </p>
+
+            </div>
+
+          </div>
+
+
+          <div className="stats-grid">
+
+            <div className="stat-card">
+
+              <span>
+                Records Processed
+              </span>
+
+              <strong>
+                {processedCount}
+              </strong>
+
+            </div>
+
+
+            <div className="stat-card">
+
+              <span>
+                Anomalies Detected
+              </span>
+
+              <strong>
+                {anomalyCount}
+              </strong>
+
+            </div>
+
+
+            <div className="stat-card">
+
+              <span>
+                Normal Records
+              </span>
+
+              <strong>
+                {normalCount}
+              </strong>
+
+            </div>
+
+
+            <div className="stat-card">
+
+              <span>
+                Anomaly Rate
+              </span>
+
+              <strong>
+                {Number(
+                  anomalyPercentage
+                ).toFixed(2)}
+                %
+              </strong>
+
+            </div>
+
+          </div>
+
+        </section>
+
+
+        {/* ==================================================== */}
+        {/* SENSOR HEALTH */}
+        {/* ==================================================== */}
+
+        <section className="section">
+
+          <div className="section-heading">
+
+            <div>
+
+              <h2>
+                Sensor Health
+              </h2>
+
+              <p>
+                Engineering health assessment
+              </p>
+
+            </div>
+
+            <span className="live-badge">
+              {sensorHealth.health_status}
+            </span>
+
+          </div>
+
+
+          <div className="health-card">
+
+            <div className="health-score">
+
+              <div className="health-score-number">
+                {Number(
+                  sensorHealth.health_score
+                ).toFixed(2)}
+              </div>
+
+              <span>
+                / 100
+              </span>
+
+            </div>
+
+
+            <div className="health-metrics">
+
+              <div>
+                <span>
+                  Health Status
+                </span>
+
+                <strong>
+                  {sensorHealth.health_status}
+                </strong>
+              </div>
+
+
+              <div>
+                <span>
+                  Anomaly Rate
+                </span>
+
+                <strong>
+                  {Number(
+                    sensorHealth.anomaly_rate
+                  ).toFixed(2)}
+                  %
+                </strong>
+              </div>
+
+
+              <div>
+                <span>
+                  Avg. Persistence
+                </span>
+
+                <strong>
+                  {Number(
+                    sensorHealth
+                      .average_anomaly_persistence_hours
+                  ).toFixed(2)}
+                  h
+                </strong>
+              </div>
+
+
+              <div>
+                <span>
+                  Records
+                </span>
+
+                <strong>
+                  {
+                    sensorHealth.records_processed
+                  }
+                </strong>
+              </div>
+
+
+              <div>
+                <span>
+                  Anomalies
+                </span>
+
+                <strong>
+                  {
+                    sensorHealth.anomalies_detected
+                  }
+                </strong>
+              </div>
+
+            </div>
+
+          </div>
+
+
+          <p className="health-note">
+            Sensor Health Score is an engineering
+            dashboard score, not a calibrated probability.
+          </p>
+
+        </section>
+
+
+        {/* ==================================================== */}
+        {/* AI EXPLANATION */}
+        {/* ==================================================== */}
+
+        <section className="section">
+
+          <div className="section-heading">
+
+            <div>
+
+              <h2>
+                AI Explanation
+              </h2>
+
+              <p>
+                How SkyGuard AI analyzes AWS data
+              </p>
+
+            </div>
+
+          </div>
+
+
+          <div className="explanation-card">
+
+            <div className="explanation-item">
+
+              <div className="explanation-number">
+                1
+              </div>
+
+              <div>
+
+                <h3>
+                  Core Weather Variables
+                </h3>
+
+                <p>
+                  Temperature, pressure and humidity
+                  form the core variables used by the
+                  anomaly detection model.
+                </p>
+
+              </div>
+
+            </div>
+
+
+            <div className="explanation-item">
+
+              <div className="explanation-number">
+                2
+              </div>
+
+              <div>
+
+                <h3>
+                  Temporal Features
+                </h3>
+
+                <p>
+                  Changes and 24-hour rolling statistics
+                  help the model understand temporal
+                  weather behaviour.
+                </p>
+
+              </div>
+
+            </div>
+
+
+            <div className="explanation-item">
+
+              <div className="explanation-number">
+                3
+              </div>
+
+              <div>
+
+                <h3>
+                  Isolation Forest
+                </h3>
+
+                <p>
+                  Isolation Forest identifies observations
+                  that differ from the learned normal
+                  weather pattern.
+                </p>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </section>
+
+
+        {/* ==================================================== */}
+        {/* AI MODEL */}
+        {/* ==================================================== */}
+
+        <section className="section">
+
+          <div className="section-heading">
+
+            <div>
+
+              <h2>
+                AI Model
+              </h2>
+
+              <p>
+                Current deployed model configuration
+              </p>
+
+            </div>
+
+          </div>
+
+
+          <div className="model-grid">
+
+            <div className="model-card">
+
+              <span>
+                Model
+              </span>
+
+              <strong>
+                Isolation Forest
+              </strong>
+
+            </div>
+
+
+            <div className="model-card">
+
+              <span>
+                Estimators
+              </span>
+
+              <strong>
+                200
+              </strong>
+
+            </div>
+
+
+            <div className="model-card">
+
+              <span>
+                Threshold
+              </span>
+
+              <strong>
+                {Number(
+                  result
+                    ?.latest_prediction
+                    ?.threshold ??
+                  0.045255535895246286
+                ).toFixed(4)}
+              </strong>
+
+            </div>
+
+
+            <div className="model-card">
+
+              <span>
+                Core Variables
+              </span>
+
+              <strong>
+                T / P / RH
+              </strong>
+
+            </div>
+
+          </div>
+
+        </section>
+
+
+        {/* ==================================================== */}
+        {/* PIPELINE */}
+        {/* ==================================================== */}
+
+        <section className="section">
+
+          <div className="section-heading">
+
+            <div>
+
+              <h2>
+                SkyGuard AI Pipeline
+              </h2>
+
+              <p>
+                Intelligent anomaly workflow
+              </p>
+
+            </div>
+
+          </div>
+
+
+          <div className="pipeline">
+
+            <div className="pipeline-step">
+
+              <span>
+                01
+              </span>
+
+              <strong>
+                Detect
+              </strong>
+
+              <small>
+                ML + rule evidence
+              </small>
+
+            </div>
+
+
+            <div className="pipeline-arrow">
+              →
+            </div>
+
+
+            <div className="pipeline-step">
+
+              <span>
+                02
+              </span>
+
+              <strong>
+                Verify
+              </strong>
+
+              <small>
+                Spatial / temporal checks
+              </small>
+
+            </div>
+
+
+            <div className="pipeline-arrow">
+              →
+            </div>
+
+
+            <div className="pipeline-step">
+
+              <span>
+                03
+              </span>
+
+              <strong>
+                Explain
+              </strong>
+
+              <small>
+                Root cause evidence
+              </small>
+
+            </div>
+
+
+            <div className="pipeline-arrow">
+              →
+            </div>
+
+
+            <div className="pipeline-step">
+
+              <span>
+                04
+              </span>
+
+              <strong>
+                Act
+              </strong>
+
+              <small>
+                Alert / maintenance
+              </small>
+
+            </div>
+
+          </div>
+
+        </section>
+
+
+        {/* ==================================================== */}
+        {/* STATUS */}
+        {/* ==================================================== */}
+
+        <section className="section">
+
+          <div className="status-panel">
+
+            <div>
+
+              <span className="status-dot"></span>
+
+              <strong>
+                SkyGuard AI System Online
+              </strong>
+
+            </div>
+
+            <p>
+              Weather ingestion, ML anomaly detection
+              and sensor health analysis are active.
+            </p>
+
+          </div>
+
+        </section>
+
+      </main>
+
+
+      {/* ====================================================== */}
+      {/* FOOTER */}
+      {/* ====================================================== */}
+
+      <footer className="footer">
+
+        <p>
+          SkyGuard AI — Intelligent AWS Anomaly Detection
+        </p>
+
+        <small>
+          Detect → Verify → Explain → Act
+        </small>
+
+      </footer>
+
+    </div>
+  );
 }
 
 export default App;
