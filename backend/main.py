@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+
 import joblib
 import json
 import os
@@ -21,6 +22,11 @@ app = FastAPI(
     ),
     version="1.1.0"
 )
+
+# ============================================================
+# CORS
+# ============================================================
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -29,8 +35,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 # ============================================================
-# PATHS
+# MODEL PATHS
 # ============================================================
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -147,26 +154,25 @@ def root():
 
 
 # ============================================================
-# HEALTH CHECK
+# HEALTH
 # ============================================================
 
 @app.get("/api/health")
 def health():
 
     response = {
-        "status": "healthy" if MODEL_LOADED else "model_error",
+        "status": "healthy",
         "model_loaded": MODEL_LOADED
     }
 
     if MODEL_ERROR:
-
         response["model_error"] = MODEL_ERROR
 
     return response
 
 
 # ============================================================
-# MODEL INFORMATION
+# MODEL INFO
 # ============================================================
 
 @app.get("/api/model-info")
@@ -225,10 +231,6 @@ def model_info():
 
 def create_features(readings):
 
-    # --------------------------------------------------------
-    # Convert input to DataFrame
-    # --------------------------------------------------------
-
     records = []
 
     for reading in readings:
@@ -257,7 +259,7 @@ def create_features(readings):
             ).reset_index(drop=True)
 
     # --------------------------------------------------------
-    # Make sure required columns exist
+    # Required sensor columns
     # --------------------------------------------------------
 
     required = [
@@ -298,20 +300,14 @@ def create_features(readings):
     # Fill base sensor values
     # --------------------------------------------------------
 
-    df[
-        [
-            "Temperature_C",
-            "Pressure_hPa",
-            "Humidity_percent"
-        ]
-    ] = (
-        df[
-            [
-                "Temperature_C",
-                "Pressure_hPa",
-                "Humidity_percent"
-            ]
-        ]
+    sensor_columns = [
+        "Temperature_C",
+        "Pressure_hPa",
+        "Humidity_percent"
+    ]
+
+    df[sensor_columns] = (
+        df[sensor_columns]
         .ffill()
         .bfill()
     )
@@ -333,7 +329,7 @@ def create_features(readings):
     )
 
     # --------------------------------------------------------
-    # 24-hour rolling features
+    # Rolling features - 24 hours
     # --------------------------------------------------------
 
     df["Temperature_C_RollingMean_24h"] = (
@@ -444,9 +440,7 @@ def weather_history(data: WeatherHistory):
 
         "latest_reading": latest.model_dump(),
 
-        "message": (
-            "Weather history received successfully."
-        )
+        "message": "Weather history received successfully."
     }
 
 
@@ -472,10 +466,6 @@ def current_weather(data: WeatherReading):
 @app.post("/api/predict")
 def predict(data: WeatherHistory):
 
-    # --------------------------------------------------------
-    # Check model
-    # --------------------------------------------------------
-
     if not MODEL_LOADED:
 
         raise HTTPException(
@@ -483,17 +473,14 @@ def predict(data: WeatherHistory):
             detail="ML model could not be loaded."
         )
 
-    # --------------------------------------------------------
-    # Minimum history
-    # --------------------------------------------------------
-
     if len(data.readings) < 24:
 
         raise HTTPException(
             status_code=400,
             detail=(
                 "At least 24 hourly readings are required "
-                "for the 24-hour temporal features."
+                "for the 24-hour rolling features used by "
+                "the trained model."
             )
         )
 
@@ -511,17 +498,13 @@ def predict(data: WeatherHistory):
         # Isolation Forest
         # ----------------------------------------------------
 
-        decision_scores = model.decision_function(
-            X
-        )
+        decision_scores = model.decision_function(X)
 
-        # Convert sklearn decision score
-        # so higher value = more anomalous
-
+        # Higher value = more anomalous
         anomaly_scores = -decision_scores
 
         # ----------------------------------------------------
-        # Threshold-based prediction
+        # Threshold prediction
         # ----------------------------------------------------
 
         predictions = (
@@ -543,7 +526,7 @@ def predict(data: WeatherHistory):
         )
 
         # ----------------------------------------------------
-        # Latest reading
+        # Latest prediction
         # ----------------------------------------------------
 
         latest = df.iloc[-1]
@@ -596,7 +579,7 @@ def predict(data: WeatherHistory):
         )
 
         # ----------------------------------------------------
-        # Return response
+        # Response
         # ----------------------------------------------------
 
         return {
@@ -668,9 +651,7 @@ def anomalies(data: WeatherHistory):
             data.readings
         )
 
-        decision_scores = model.decision_function(
-            X
-        )
+        decision_scores = model.decision_function(X)
 
         anomaly_scores = -decision_scores
 
@@ -680,9 +661,7 @@ def anomalies(data: WeatherHistory):
 
         results = []
 
-        for index in range(
-            len(df)
-        ):
+        for index in range(len(df)):
 
             row = df.iloc[index]
 
