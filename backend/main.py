@@ -22,7 +22,7 @@ app = FastAPI(
         "AI/ML-Based Intelligent Anomaly Detection "
         "for Automatic Weather Stations"
     ),
-    version="1.2.0"
+   version="1.3.0"
 )
 
 
@@ -442,7 +442,153 @@ def create_features(df):
     )
 
     return data
+# =========================================================
+# SENSOR HEALTH CALCULATION
+# =========================================================
 
+def calculate_sensor_health(result_df):
+
+    total_records = len(result_df)
+
+    if total_records == 0:
+        return {
+            "health_score": 0,
+            "health_status": "Unknown",
+            "anomaly_rate": 0,
+            "average_anomaly_persistence_hours": 0,
+            "records_processed": 0,
+            "anomalies_detected": 0
+        }
+
+    anomaly_count = int(
+        result_df["Anomaly"].sum()
+    )
+
+    anomaly_rate = (
+        anomaly_count /
+        total_records *
+        100
+    )
+
+    # -----------------------------------------------------
+    # Calculate consecutive anomaly runs
+    # -----------------------------------------------------
+
+    anomaly_values = (
+        result_df["Anomaly"]
+        .astype(int)
+        .tolist()
+    )
+
+    runs = []
+    current_run = 0
+
+    for value in anomaly_values:
+
+        if value == 1:
+
+            current_run += 1
+
+        else:
+
+            if current_run > 0:
+                runs.append(current_run)
+
+            current_run = 0
+
+    if current_run > 0:
+        runs.append(current_run)
+
+    if runs:
+
+        average_persistence = (
+            float(np.mean(runs))
+        )
+
+    else:
+
+        average_persistence = 0.0
+
+    # -----------------------------------------------------
+    # Engineering health score
+    #
+    # This is a dashboard score,
+    # NOT a calibrated probability.
+    # -----------------------------------------------------
+
+    anomaly_burden = min(
+        anomaly_rate * 2,
+        40
+    )
+
+    persistence_burden = min(
+        average_persistence * 5,
+        20
+    )
+
+    health_score = (
+        100
+        - anomaly_burden
+        - persistence_burden
+    )
+
+    health_score = max(
+        0,
+        min(
+            100,
+            health_score
+        )
+    )
+
+    # -----------------------------------------------------
+    # Health status
+    # -----------------------------------------------------
+
+    if health_score >= 90:
+
+        health_status = "Healthy"
+
+    elif health_score >= 75:
+
+        health_status = "Good"
+
+    elif health_score >= 50:
+
+        health_status = "Warning"
+
+    else:
+
+        health_status = "Critical"
+
+    return {
+
+        "health_score":
+            round(
+                health_score,
+                2
+            ),
+
+        "health_status":
+            health_status,
+
+        "anomaly_rate":
+            round(
+                anomaly_rate,
+                2
+            ),
+
+        "average_anomaly_persistence_hours":
+            round(
+                average_persistence,
+                2
+            ),
+
+        "records_processed":
+            total_records,
+
+        "anomalies_detected":
+            anomaly_count
+    }
 
 # =========================================================
 # RUN ISOLATION FOREST
@@ -790,7 +936,51 @@ def live_anomaly_detection():
                 + str(e)
             )
         )
+# =========================================================
+# SENSOR HEALTH
+# =========================================================
 
+@app.get("/api/sensor-health")
+def sensor_health():
+
+    try:
+
+        weather_df = (
+            fetch_open_meteo_weather()
+        )
+
+        result_df = run_prediction(
+            weather_df
+        )
+
+        health = calculate_sensor_health(
+            result_df
+        )
+
+        return {
+
+            "status": "success",
+
+            "station":
+                STATION_NAME,
+
+            "health": health,
+
+            "note":
+                "Sensor Health Score is an engineering "
+                "dashboard score, not a calibrated probability."
+
+        }
+
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Sensor health calculation failed: "
+                + str(e)
+            )
+        )
 
 # =========================================================
 # RUN LOCALLY
