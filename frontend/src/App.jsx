@@ -7,13 +7,6 @@ function App() {
   // STATE
   // =========================================================
 
-  const [loading, setLoading] = useState(false);
-  const [weatherLoading, setWeatherLoading] = useState(true);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [healthLoading, setHealthLoading] = useState(false);
-
-  const [error, setError] = useState("");
-
   const [weather, setWeather] = useState({
     temperature: 0,
     pressure: 0,
@@ -45,6 +38,11 @@ function App() {
 
   const [sensorHealth, setSensorHealth] = useState(null);
 
+  const [loading, setLoading] = useState(true);
+  const [weatherLoading, setWeatherLoading] = useState(true);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [healthLoading, setHealthLoading] = useState(false);
+  const [error, setError] = useState("");
 
   // =========================================================
   // FORMAT TIMESTAMP
@@ -58,20 +56,19 @@ function App() {
     return timestamp.replace("T", " ");
   };
 
-
   // =========================================================
   // LOAD LIVE WEATHER
   // =========================================================
 
   const loadWeather = async () => {
-    setWeatherLoading(true);
-    setError("");
-
     try {
+      setWeatherLoading(true);
+      setError("");
+
       const response = await fetch(`${API_URL}/api/weather`);
 
       if (!response.ok) {
-        throw new Error("Weather API request failed");
+        throw new Error("Unable to fetch weather data");
       }
 
       const data = await response.json();
@@ -91,64 +88,56 @@ function App() {
         timestamp: latest.Timestamp || "--",
         station: data.station || "AWS_COIMBATORE_TARGET",
       });
-
     } catch (err) {
       console.error("Weather error:", err);
 
       setError(
         "Unable to connect to SkyGuard AI backend."
       );
-
     } finally {
+      setLoading(false);
       setWeatherLoading(false);
     }
   };
-
 
   // =========================================================
   // LOAD SENSOR HEALTH
   // =========================================================
 
   const loadSensorHealth = async () => {
-    setHealthLoading(true);
-
     try {
+      setHealthLoading(true);
+
       const response = await fetch(
         `${API_URL}/api/sensor-health`
       );
 
       if (!response.ok) {
-        throw new Error(
-          "Unable to fetch sensor health"
-        );
+        throw new Error("Unable to fetch sensor health");
       }
 
       const data = await response.json();
 
       setSensorHealth(data);
-
     } catch (err) {
       console.error(
         "Sensor health error:",
         err
       );
-
     } finally {
       setHealthLoading(false);
     }
   };
-
 
   // =========================================================
   // RUN AI ANALYSIS
   // =========================================================
 
   const runAnalysis = async () => {
-    setAnalyzing(true);
-    setLoading(true);
-    setError("");
-
     try {
+      setAnalyzing(true);
+      setLoading(true);
+      setError("");
 
       // -----------------------------------------------------
       // STEP 1: GET LIVE WEATHER
@@ -178,10 +167,8 @@ function App() {
       }
 
       const records = weatherData.records;
-
       const latestWeather =
         weatherData.latest || {};
-
 
       // -----------------------------------------------------
       // UPDATE WEATHER CARDS
@@ -211,7 +198,6 @@ function App() {
           "AWS_COIMBATORE_TARGET",
       });
 
-
       // -----------------------------------------------------
       // STEP 2: SEND DATA TO ML MODEL
       // -----------------------------------------------------
@@ -229,17 +215,14 @@ function App() {
           }),
         });
 
-
       if (!predictionResponse.ok) {
         throw new Error(
           "AI prediction failed"
         );
       }
 
-
       const predictionData =
         await predictionResponse.json();
-
 
       // -----------------------------------------------------
       // LATEST ML PREDICTION
@@ -251,13 +234,11 @@ function App() {
       const anomalyDetected =
         Boolean(latestPrediction.anomaly);
 
-
       // -----------------------------------------------------
       // UPDATE RESULT
       // -----------------------------------------------------
 
       setResult({
-
         status:
           latestPrediction.status ||
           "NORMAL",
@@ -308,7 +289,8 @@ function App() {
             ? "Medium"
             : "Normal",
 
-        // Heuristic score — NOT probability
+        // This is a heuristic dashboard score,
+        // NOT a calibrated probability.
         confidence:
           anomalyDetected
             ? 70
@@ -320,31 +302,25 @@ function App() {
             : "Continue normal monitoring",
       });
 
-
       // -----------------------------------------------------
       // STEP 3: REFRESH SENSOR HEALTH
       // -----------------------------------------------------
 
       await loadSensorHealth();
-
     } catch (err) {
-
       console.error(
         "Analysis error:",
         err
       );
 
       setError(
-        "Unable to connect to SkyGuard AI backend. Please check the Render backend."
+        "AI analysis failed. Please try again."
       );
-
     } finally {
-
       setLoading(false);
       setAnalyzing(false);
     }
   };
-
 
   // =========================================================
   // INITIAL PAGE LOAD
@@ -354,7 +330,6 @@ function App() {
     loadWeather();
     loadSensorHealth();
   }, []);
-
 
   // =========================================================
   // SENSOR HEALTH VALUES
@@ -382,13 +357,11 @@ function App() {
   const healthAnomalies =
     health?.anomalies_detected ?? 0;
 
-
   // =========================================================
   // HEALTH STATUS CLASS
   // =========================================================
 
   const getHealthClass = (status) => {
-
     if (status === "Healthy") {
       return "healthy";
     }
@@ -408,13 +381,11 @@ function App() {
     return "unknown";
   };
 
-
   // =========================================================
   // AI STATUS
   // =========================================================
 
   const getAIStatus = () => {
-
     if (result.records === 0) {
       return {
         text: "Ready",
@@ -435,9 +406,7 @@ function App() {
     };
   };
 
-
   const aiStatus = getAIStatus();
-
 
   // =========================================================
   // RENDER
@@ -453,28 +422,31 @@ function App() {
       <header className="header">
 
         <div>
+          <h1>🛡️ SkyGuard AI</h1>
 
-          <h1>
-            🛡️ SkyGuard AI
-          </h1>
-
-          <p>
+          <p className="subtitle">
             Intelligent Anomaly Detection for
             Automatic Weather Stations
           </p>
-
         </div>
 
-
-        <div className="system-status">
-
-          <span className="status-dot"></span>
-
+        <div className="header-status">
+          <span className="online-dot"></span>
           Backend Online
-
         </div>
 
       </header>
+
+
+      {/* =====================================================
+          ERROR
+      ===================================================== */}
+
+      {error && (
+        <div className="error-box">
+          ⚠️ {error}
+        </div>
+      )}
 
 
       {/* =====================================================
@@ -484,6 +456,10 @@ function App() {
       <section className="hero">
 
         <div>
+
+          <span className="section-label">
+            MONITORED STATION
+          </span>
 
           <h2>
             Weather Station Intelligence Dashboard
@@ -496,11 +472,23 @@ function App() {
           </p>
 
           <small>
-            Station: AWS_COIMBATORE_TARGET
+            Station: {weather.station}
+          </small>
+
+          <br />
+
+          <small>
+            Last updated:{" "}
+            {formatTimestamp(
+              weather.timestamp
+            )}
           </small>
 
         </div>
 
+        <div className="station-badge">
+          AWS
+        </div>
 
         <button
           className="analyze-button"
@@ -510,47 +498,12 @@ function App() {
             weatherLoading
           }
         >
-
           {analyzing
             ? "⏳ Analyzing..."
             : "🚀 Run AI Analysis"}
-
         </button>
 
       </section>
-
-
-      {/* =====================================================
-          ERROR MESSAGE
-      ===================================================== */}
-
-      {error && (
-
-        <section className="section">
-
-          <div className="detection anomaly">
-
-            <div className="detection-icon">
-              ⚠️
-            </div>
-
-            <div>
-
-              <h2>
-                Connection Problem
-              </h2>
-
-              <p>
-                {error}
-              </p>
-
-            </div>
-
-          </div>
-
-        </section>
-
-      )}
 
 
       {/* =====================================================
@@ -559,40 +512,9 @@ function App() {
 
       <section className="section">
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: "15px",
-            flexWrap: "wrap",
-          }}
-        >
-
-          <div>
-
-            <h2>
-              🌦️ Current Weather
-            </h2>
-
-            <span>
-
-              {weatherLoading
-                ? "Loading live data..."
-                : `Updated: ${formatTimestamp(
-                    weather.timestamp
-                  )}`}
-
-            </span>
-
-          </div>
-
-          <strong>
-            {weather.station}
-          </strong>
-
-        </div>
-
+        <h2>
+          🌦️ Current Weather
+        </h2>
 
         <div className="cards">
 
@@ -609,9 +531,11 @@ function App() {
             </span>
 
             <strong>
-              {Number(
-                weather.temperature
-              ).toFixed(1)} °C
+              {loading
+                ? "..."
+                : `${Number(
+                    weather.temperature
+                  ).toFixed(1)} °C`}
             </strong>
 
           </div>
@@ -630,9 +554,11 @@ function App() {
             </span>
 
             <strong>
-              {Number(
-                weather.pressure
-              ).toFixed(1)} hPa
+              {loading
+                ? "..."
+                : `${Number(
+                    weather.pressure
+                  ).toFixed(1)} hPa`}
             </strong>
 
           </div>
@@ -651,9 +577,11 @@ function App() {
             </span>
 
             <strong>
-              {Number(
-                weather.humidity
-              ).toFixed(0)} %
+              {loading
+                ? "..."
+                : `${Number(
+                    weather.humidity
+                  ).toFixed(0)} %`}
             </strong>
 
           </div>
@@ -672,9 +600,11 @@ function App() {
             </span>
 
             <strong>
-              {Number(
-                weather.rain
-              ).toFixed(1)} mm
+              {loading
+                ? "..."
+                : `${Number(
+                    weather.rain
+                  ).toFixed(1)} mm`}
             </strong>
 
           </div>
@@ -693,9 +623,11 @@ function App() {
             </span>
 
             <strong>
-              {Number(
-                weather.wind
-              ).toFixed(1)} km/h
+              {loading
+                ? "..."
+                : `${Number(
+                    weather.wind
+                  ).toFixed(1)} km/h`}
             </strong>
 
           </div>
@@ -715,7 +647,6 @@ function App() {
           🤖 AI Detection Status
         </h2>
 
-
         <div
           className={`detection ${
             result.anomaly
@@ -732,14 +663,15 @@ function App() {
 
           </div>
 
-
           <div>
 
             <h2>
 
               {result.anomaly
                 ? "ANOMALY DETECTED"
-                : "NORMAL WEATHER"}
+                : result.records > 0
+                ? "NORMAL WEATHER"
+                : "READY FOR ANALYSIS"}
 
             </h2>
 
@@ -785,11 +717,12 @@ function App() {
 
           </div>
 
-
           <div
-            className={`health-status ${getHealthClass(
-              healthStatus
-            )}`}
+            className={`health-status ${
+              getHealthClass(
+                healthStatus
+              )
+            }`}
           >
 
             {healthStatus === "Healthy" &&
@@ -829,10 +762,11 @@ function App() {
 
               {healthLoading
                 ? "..."
-                : `${healthScore}/100`}
+                : `${Number(
+                    healthScore
+                  ).toFixed(0)}/100`}
 
             </div>
-
 
             <div className="health-bar">
 
@@ -841,7 +775,9 @@ function App() {
                 style={{
                   width: `${Math.min(
                     Math.max(
-                      Number(healthScore),
+                      Number(
+                        healthScore
+                      ),
                       0
                     ),
                     100
@@ -850,7 +786,6 @@ function App() {
               ></div>
 
             </div>
-
 
             <small>
               Engineering dashboard score
@@ -995,7 +930,6 @@ function App() {
           📊 Analysis Summary
         </h2>
 
-
         <div className="stats">
 
           <div className="stat">
@@ -1031,7 +965,9 @@ function App() {
             </span>
 
             <strong>
-              {result.anomalyPercentage}%
+              {Number(
+                result.anomalyPercentage
+              ).toFixed(2)}%
             </strong>
 
           </div>
@@ -1065,7 +1001,6 @@ function App() {
         <h2>
           🧠 AI Explanation
         </h2>
-
 
         <div className="explanation">
 
@@ -1135,8 +1070,21 @@ function App() {
           📈 Latest ML Decision
         </h2>
 
+        <div
+          className={`decision-card ${
+            result.anomaly
+              ? "decision-alert"
+              : "decision-normal"
+          }`}
+        >
 
-        <div className="model-box">
+          <div className="decision-icon">
+
+            {result.anomaly
+              ? "🚨"
+              : "✅"}
+
+          </div>
 
           <div>
 
@@ -1144,39 +1092,32 @@ function App() {
               Latest Status
             </span>
 
-            <strong>
+            <h3>
               {result.status}
-            </strong>
+            </h3>
 
-          </div>
-
-
-          <div>
-
-            <span>
-              Anomaly Score
-            </span>
-
-            <strong>
+            <p>
+              Anomaly Score:{" "}
               {Number(
                 result.anomalyScore
               ).toFixed(4)}
-            </strong>
+            </p>
 
-          </div>
-
-
-          <div>
-
-            <span>
-              Detection Threshold
-            </span>
-
-            <strong>
+            <p>
+              Detection Threshold:{" "}
               {Number(
                 result.threshold
               ).toFixed(4)}
-            </strong>
+            </p>
+
+            {result.records > 0 && (
+              <p>
+                Latest observation:{" "}
+                {result.temperature} °C,{" "}
+                {result.pressure} hPa,{" "}
+                {result.humidity}% RH
+              </p>
+            )}
 
           </div>
 
@@ -1195,83 +1136,74 @@ function App() {
           ⚙️ AI Model
         </h2>
 
-
         <div className="model-box">
 
-          <div>
+          <div className="model-grid">
 
-            <span>
-              Model
-            </span>
+            <div>
+              <span>
+                Model
+              </span>
 
-            <strong>
-              Isolation Forest
-            </strong>
-
-          </div>
-
-
-          <div>
-
-            <span>
-              Estimators
-            </span>
-
-            <strong>
-              200
-            </strong>
-
-          </div>
+              <strong>
+                Isolation Forest
+              </strong>
+            </div>
 
 
-          <div>
+            <div>
+              <span>
+                Estimators
+              </span>
 
-            <span>
-              Features
-            </span>
-
-            <strong>
-              15
-            </strong>
-
-          </div>
+              <strong>
+                200
+              </strong>
+            </div>
 
 
-          <div>
+            <div>
+              <span>
+                Features
+              </span>
 
-            <span>
-              Contamination
-            </span>
-
-            <strong>
-              Auto
-            </strong>
-
-          </div>
+              <strong>
+                15
+              </strong>
+            </div>
 
 
-          <div>
+            <div>
+              <span>
+                Contamination
+              </span>
 
-            <span>
-              Threshold
-            </span>
-
-            <strong>
-              0.0453
-            </strong>
-
-          </div>
+              <strong>
+                Auto
+              </strong>
+            </div>
 
 
-          <div>
+            <div>
+              <span>
+                Threshold
+              </span>
 
-            <span>
-              Architecture
-            </span>
+              <strong>
+                0.0453
+              </strong>
+            </div>
 
-            <strong>
-              Edge + Cloud
-            </strong>
+
+            <div>
+              <span>
+                Architecture
+              </span>
+
+              <strong>
+                Edge + Cloud
+              </strong>
+            </div>
 
           </div>
 
@@ -1290,50 +1222,100 @@ function App() {
           🔄 SkyGuard AI Pipeline
         </h2>
 
-
         <div className="pipeline">
 
-          <div>
-            🌦️
-            <span>
-              Live Weather Data
-            </span>
+          <div className="pipeline-step">
+
+            <span>1</span>
+
+            <strong>
+              Ingest
+            </strong>
+
+            <p>
+              Live weather data from Open-Meteo
+            </p>
+
           </div>
 
-          <div>↓</div>
 
-          <div>
-            🧹
-            <span>
-              Preprocessing
-            </span>
+          <div className="pipeline-arrow">
+            →
           </div>
 
-          <div>↓</div>
 
-          <div>
-            🤖
-            <span>
-              ML Detection
-            </span>
+          <div className="pipeline-step">
+
+            <span>2</span>
+
+            <strong>
+              Engineer
+            </strong>
+
+            <p>
+              Temporal and missing-value features
+            </p>
+
           </div>
 
-          <div>↓</div>
 
-          <div>
-            🧠
-            <span>
+          <div className="pipeline-arrow">
+            →
+          </div>
+
+
+          <div className="pipeline-step">
+
+            <span>3</span>
+
+            <strong>
+              Detect
+            </strong>
+
+            <p>
+              Isolation Forest anomaly detection
+            </p>
+
+          </div>
+
+
+          <div className="pipeline-arrow">
+            →
+          </div>
+
+
+          <div className="pipeline-step">
+
+            <span>4</span>
+
+            <strong>
               Explain
-            </span>
+            </strong>
+
+            <p>
+              Evidence and sensor health monitoring
+            </p>
+
           </div>
 
-          <div>↓</div>
 
-          <div>
-            🚨
-            <span>
-              Alert / Action
-            </span>
+          <div className="pipeline-arrow">
+            →
+          </div>
+
+
+          <div className="pipeline-step">
+
+            <span>5</span>
+
+            <strong>
+              Act
+            </strong>
+
+            <p>
+              Alert and maintenance response
+            </p>
+
           </div>
 
         </div>
@@ -1349,29 +1331,42 @@ function App() {
 
         <div className="model-box">
 
-          <div>
+          <h2>
+            🧠 How SkyGuard AI Works
+          </h2>
 
-            <h2>
-              🧠 How SkyGuard AI Works
-            </h2>
+          <p>
+            Live weather data is collected from
+            Open-Meteo, transformed into temporal
+            features, and passed through an
+            Isolation Forest model to identify
+            unusual sensor behaviour.
+          </p>
 
-            <p>
-              Live weather data is collected from
-              Open-Meteo, transformed into temporal
-              features, and passed through an
-              Isolation Forest model to identify
-              unusual sensor behaviour.
-            </p>
+          <p>
+            The detected anomalies are then
+            combined with engineering evidence
+            and sensor-health monitoring to
+            support alert and maintenance decisions.
+          </p>
 
-            <p>
-              The detected anomalies are then
-              combined with engineering evidence
-              and sensor-health monitoring to
-              support alert and maintenance decisions.
-            </p>
+        </div>
 
-          </div>
+      </section>
 
+
+      {/* =====================================================
+          AI STATUS
+      ===================================================== */}
+
+      <section className="section">
+
+        <div
+          className={`ai-status ${
+            aiStatus.className
+          }`}
+        >
+          {aiStatus.text}
         </div>
 
       </section>
@@ -1383,14 +1378,19 @@ function App() {
 
       <footer className="footer">
 
-        <p>
+        <div>
+
           <strong>
             SkyGuard AI
           </strong>
-          {" "}• SIH Project • AI/ML-Based
-          Intelligent Anomaly Detection for
-          Automatic Weather Stations
-        </p>
+
+          <span>
+            {" "}• SIH Project • AI/ML-Based
+            Intelligent Anomaly Detection for
+            Automatic Weather Stations
+          </span>
+
+        </div>
 
         <p>
           Prototype • v1.3.0
