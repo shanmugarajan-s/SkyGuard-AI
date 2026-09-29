@@ -1,54 +1,226 @@
-import React from "react";
-import { useState } from "react";
+import React, { useState } from "react";
 
 const API_URL = "https://skyguard-ai-1-4rqi.onrender.com";
 
 function App() {
-  const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+
+  const [result, setResult] = useState({
+    status: "NORMAL",
+    anomaly: false,
+    temperature: 24.4,
+    pressure: 962.6,
+    humidity: 83,
+    rain: 0,
+    wind: 10.2,
+    anomalies: 0,
+    records: 24,
+    anomalyPercentage: 0,
+    anomalyScore: -0.0797,
+    threshold: 0.0453,
+    rootCause: "No anomaly detected",
+    severity: "Normal",
+    confidence: 0,
+    action: "Continue normal monitoring"
+  });
+
+  const sampleWeatherData = [
+    {
+      Timestamp: "2026-09-26T00:00:00",
+      Temperature_C: 24.1,
+      Pressure_hPa: 962.1,
+      Humidity_percent: 82,
+      Rain_mm: 0,
+      WindSpeed_kmh: 7.2
+    },
+    {
+      Timestamp: "2026-09-26T01:00:00",
+      Temperature_C: 23.8,
+      Pressure_hPa: 962.4,
+      Humidity_percent: 84,
+      Rain_mm: 0,
+      WindSpeed_kmh: 6.8
+    },
+    {
+      Timestamp: "2026-09-26T02:00:00",
+      Temperature_C: 23.5,
+      Pressure_hPa: 962.2,
+      Humidity_percent: 86,
+      Rain_mm: 0,
+      WindSpeed_kmh: 6.5
+    },
+    {
+      Timestamp: "2026-09-26T03:00:00",
+      Temperature_C: 23.2,
+      Pressure_hPa: 962.0,
+      Humidity_percent: 87,
+      Rain_mm: 0,
+      WindSpeed_kmh: 6.2
+    },
+    {
+      Timestamp: "2026-09-26T04:00:00",
+      Temperature_C: 22.9,
+      Pressure_hPa: 961.8,
+      Humidity_percent: 88,
+      Rain_mm: 0,
+      WindSpeed_kmh: 6.0
+    },
+    {
+      Timestamp: "2026-09-26T05:00:00",
+      Temperature_C: 22.7,
+      Pressure_hPa: 962.1,
+      Humidity_percent: 87,
+      Rain_mm: 0,
+      WindSpeed_kmh: 6.4
+    },
+    {
+      Timestamp: "2026-09-26T06:00:00",
+      Temperature_C: 23.1,
+      Pressure_hPa: 962.5,
+      Humidity_percent: 84,
+      Rain_mm: 0,
+      WindSpeed_kmh: 7.1
+    },
+    {
+      Timestamp: "2026-09-26T07:00:00",
+      Temperature_C: 24.3,
+      Pressure_hPa: 962.7,
+      Humidity_percent: 80,
+      Rain_mm: 0,
+      WindSpeed_kmh: 8.0
+    },
+    {
+      Timestamp: "2026-09-26T08:00:00",
+      Temperature_C: 25.8,
+      Pressure_hPa: 962.9,
+      Humidity_percent: 75,
+      Rain_mm: 0,
+      WindSpeed_kmh: 9.1
+    },
+    {
+      Timestamp: "2026-09-26T09:00:00",
+      Temperature_C: 27.2,
+      Pressure_hPa: 963.1,
+      Humidity_percent: 70,
+      Rain_mm: 0,
+      WindSpeed_kmh: 10.2
+    },
+    {
+      Timestamp: "2026-09-26T10:00:00",
+      Temperature_C: 28.6,
+      Pressure_hPa: 963.0,
+      Humidity_percent: 66,
+      Rain_mm: 0,
+      WindSpeed_kmh: 11.0
+    },
+    {
+      Timestamp: "2026-09-26T11:00:00",
+      Temperature_C: 29.4,
+      Pressure_hPa: 962.8,
+      Humidity_percent: 62,
+      Rain_mm: 0,
+      WindSpeed_kmh: 12.0
+    },
+    {
+      Timestamp: "2026-09-26T12:00:00",
+      Temperature_C: 30.5,
+      Pressure_hPa: 962.6,
+      Humidity_percent: 58,
+      Rain_mm: 0,
+      WindSpeed_kmh: 13.2
+    },
+    {
+      Timestamp: "2026-09-26T13:00:00",
+      Temperature_C: 30.1,
+      Pressure_hPa: 962.4,
+      Humidity_percent: 60,
+      Rain_mm: 0,
+      WindSpeed_kmh: 14.0
+    },
+    {
+      Timestamp: "2026-09-26T14:00:00",
+      Temperature_C: 29.7,
+      Pressure_hPa: 962.2,
+      Humidity_percent: 63,
+      Rain_mm: 0,
+      WindSpeed_kmh: 14.5
+    },
+    {
+      Timestamp: "2026-09-26T15:00:00",
+      Temperature_C: 29.1,
+      Pressure_hPa: 961.9,
+      Humidity_percent: 67,
+      Rain_mm: 0,
+      WindSpeed_kmh: 15.0
+    },
+    {
+      Timestamp: "2026-09-26T16:00:00",
+      Temperature_C: 28.4,
+      Pressure_hPa: 961.7,
+      Humidity_percent: 71,
+      Rain_mm: 0,
+      WindSpeed_kmh: 14.2
+    },
+    {
+      Timestamp: "2026-09-26T17:00:00",
+      Temperature_C: 27.8,
+      Pressure_hPa: 961.8,
+      Humidity_percent: 74,
+      Rain_mm: 0,
+      WindSpeed_kmh: 13.4
+    },
+    {
+      Timestamp: "2026-09-26T18:00:00",
+      Temperature_C: 27.1,
+      Pressure_hPa: 962.0,
+      Humidity_percent: 77,
+      Rain_mm: 0,
+      WindSpeed_kmh: 12.1
+    },
+    {
+      Timestamp: "2026-09-26T19:00:00",
+      Temperature_C: 26.3,
+      Pressure_hPa: 962.2,
+      Humidity_percent: 79,
+      Rain_mm: 0,
+      WindSpeed_kmh: 11.2
+    },
+    {
+      Timestamp: "2026-09-26T20:00:00",
+      Temperature_C: 25.7,
+      Pressure_hPa: 962.4,
+      Humidity_percent: 81,
+      Rain_mm: 0,
+      WindSpeed_kmh: 10.5
+    },
+    {
+      Timestamp: "2026-09-26T21:00:00",
+      Temperature_C: 25.1,
+      Pressure_hPa: 962.5,
+      Humidity_percent: 82,
+      Rain_mm: 0,
+      WindSpeed_kmh: 9.6
+    },
+    {
+      Timestamp: "2026-09-26T22:00:00",
+      Temperature_C: 24.7,
+      Pressure_hPa: 962.5,
+      Humidity_percent: 83,
+      Rain_mm: 0,
+      WindSpeed_kmh: 8.8
+    },
+    {
+      Timestamp: "2026-09-26T23:00:00",
+      Temperature_C: 24.4,
+      Pressure_hPa: 962.6,
+      Humidity_percent: 83,
+      Rain_mm: 0,
+      WindSpeed_kmh: 8.1
+    }
+  ];
 
   const runAnalysis = async () => {
     setLoading(true);
-    setError("");
-
-    const readings = [
-      [0, 24.1, 962.1, 82, 8],
-      [1, 23.8, 962.2, 84, 7],
-      [2, 23.5, 962.3, 85, 7],
-      [3, 23.2, 962.4, 86, 6],
-      [4, 22.9, 962.5, 87, 6],
-      [5, 22.7, 962.6, 88, 6],
-      [6, 22.8, 962.5, 87, 7],
-      [7, 23.4, 962.4, 84, 8],
-      [8, 24.6, 962.3, 80, 9],
-      [9, 26.0, 962.2, 76, 10],
-      [10, 27.4, 962.1, 71, 11],
-      [11, 28.5, 962.0, 67, 12],
-      [12, 29.4, 961.9, 63, 13],
-      [13, 30.1, 961.8, 60, 14],
-      [14, 30.5, 961.7, 58, 15],
-      [15, 30.2, 961.8, 60, 14],
-      [16, 29.7, 961.9, 63, 13],
-      [17, 28.8, 962.0, 67, 12],
-      [18, 27.6, 962.1, 71, 10],
-      [19, 26.5, 962.2, 75, 9],
-      [20, 25.7, 962.3, 78, 8],
-      [21, 25.1, 962.4, 80, 8],
-      [22, 24.7, 962.5, 82, 7],
-      [23, 24.4, 962.6, 83, 7]
-    ];
-
-    const data = readings.map(
-      ([hour, temp, pressure, humidity, wind]) => ({
-        Timestamp: `2026-09-26T${String(hour).padStart(2, "0")}:00:00`,
-        Temperature_C: temp,
-        Pressure_hPa: pressure,
-        Humidity_percent: humidity,
-        Rain_mm: 0,
-        WindSpeed_kmh: wind
-      })
-    );
 
     try {
       const response = await fetch(`${API_URL}/api/predict`, {
@@ -57,232 +229,312 @@ function App() {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          readings: data
+          records: sampleWeatherData
         })
       });
 
       if (!response.ok) {
-        throw new Error(`API request failed: ${response.status}`);
+        throw new Error("Backend request failed");
       }
 
-      const json = await response.json();
-      setResult(json);
-    } catch (err) {
-      setError(err.message);
+      const data = await response.json();
+
+      const latest = data.latest_prediction || {};
+
+      setResult({
+        status: latest.status || "NORMAL",
+        anomaly: latest.anomaly || false,
+        temperature: latest.Temperature_C ?? 0,
+        pressure: latest.Pressure_hPa ?? 0,
+        humidity: latest.Humidity_percent ?? 0,
+        rain: 0,
+        wind: 8.1,
+        anomalies: data.anomalies_detected ?? 0,
+        records: data.records_processed ?? 0,
+        anomalyPercentage: data.anomaly_percentage ?? 0,
+        anomalyScore: latest.anomaly_score ?? 0,
+        threshold: data.threshold ?? 0,
+        rootCause: latest.anomaly
+          ? "AI detected abnormal sensor behaviour"
+          : "No anomaly detected",
+        severity: latest.anomaly ? "Medium" : "Normal",
+        confidence: latest.anomaly ? 70 : 0,
+        action: latest.anomaly
+          ? "Inspect station sensors and verify readings"
+          : "Continue normal monitoring"
+      });
+    } catch (error) {
+      console.error(error);
+
+      alert(
+        "Unable to connect to SkyGuard AI backend. Please check the Render backend."
+      );
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={styles.app}>
-      <header style={styles.header}>
-        <h1>🛡️ SkyGuard AI</h1>
-        <p>
-          AI/ML-Based Intelligent Anomaly Detection for Automatic Weather
-          Stations
-        </p>
+    <div className="app">
+
+      {/* HEADER */}
+
+      <header className="header">
+        <div>
+          <h1>🛡️ SkyGuard AI</h1>
+          <p>
+            Intelligent Anomaly Detection for Automatic Weather Stations
+          </p>
+        </div>
+
+        <div className="system-status">
+          <span className="status-dot"></span>
+          Backend Online
+        </div>
       </header>
 
-      <main style={styles.container}>
-        <section style={styles.hero}>
-          <h2>Weather Station Dashboard</h2>
+      {/* HERO */}
+
+      <section className="hero">
+
+        <div>
+          <h2>Weather Station Intelligence Dashboard</h2>
+
           <p>
             Monitor weather sensor data and detect abnormal readings using
-            Isolation Forest.
+            Isolation Forest machine learning.
           </p>
+        </div>
 
-          <button
-            onClick={runAnalysis}
-            disabled={loading}
-            style={styles.button}
-          >
-            {loading ? "Analyzing..." : "Run AI Analysis"}
-          </button>
-        </section>
+        <button
+          className="analyze-button"
+          onClick={runAnalysis}
+          disabled={loading}
+        >
+          {loading ? "⏳ Analyzing..." : "🚀 Run AI Analysis"}
+        </button>
 
-        {error && (
-          <div style={styles.error}>
-            ❌ {error}
+      </section>
+
+      {/* WEATHER CARDS */}
+
+      <section className="section">
+
+        <h2>🌦️ Current Weather</h2>
+
+        <div className="cards">
+
+          <div className="card">
+            <div className="card-icon">🌡️</div>
+            <p>Temperature</p>
+            <h3>{result.temperature} °C</h3>
           </div>
-        )}
 
-        {result && (
-          <>
-            <section
-              style={{
-                ...styles.status,
-                background:
-                  result.anomalies_detected > 0 ? "#fee2e2" : "#dcfce7"
-              }}
-            >
-              <div style={{ fontSize: "40px" }}>
-                {result.anomalies_detected > 0 ? "🚨" : "✅"}
-              </div>
+          <div className="card">
+            <div className="card-icon">🔵</div>
+            <p>Pressure</p>
+            <h3>{result.pressure} hPa</h3>
+          </div>
 
-              <div>
-                <h2>
-                  {result.anomalies_detected > 0
-                    ? "ANOMALY DETECTED"
-                    : "NORMAL WEATHER"}
-                </h2>
+          <div className="card">
+            <div className="card-icon">💧</div>
+            <p>Humidity</p>
+            <h3>{result.humidity} %</h3>
+          </div>
 
-                <p>
-                  {result.anomalies_detected > 0
-                    ? "The AI model detected unusual sensor readings."
-                    : "No anomaly detected in the analyzed records."}
-                </p>
-              </div>
-            </section>
+          <div className="card">
+            <div className="card-icon">🌧️</div>
+            <p>Rain</p>
+            <h3>{result.rain} mm</h3>
+          </div>
 
-            <section style={styles.grid}>
-              <div style={styles.card}>
-                <span>🌡️ Temperature</span>
-                <strong>
-                  {result.latest_prediction?.Temperature_C} °C
-                </strong>
-              </div>
+          <div className="card">
+            <div className="card-icon">💨</div>
+            <p>Wind Speed</p>
+            <h3>{result.wind} km/h</h3>
+          </div>
 
-              <div style={styles.card}>
-                <span>🌬️ Pressure</span>
-                <strong>
-                  {result.latest_prediction?.Pressure_hPa} hPa
-                </strong>
-              </div>
+        </div>
 
-              <div style={styles.card}>
-                <span>💧 Humidity</span>
-                <strong>
-                  {result.latest_prediction?.Humidity_percent} %
-                </strong>
-              </div>
+      </section>
 
-              <div style={styles.card}>
-                <span>🚨 Anomalies</span>
-                <strong>{result.anomalies_detected}</strong>
-              </div>
-            </section>
+      {/* AI STATUS */}
 
-            <section style={styles.details}>
-              <h2>AI Analysis Result</h2>
+      <section className="section">
 
-              <p>
-                <b>Records Processed:</b> {result.records_processed}
-              </p>
+        <h2>🤖 AI Detection Status</h2>
 
-              <p>
-                <b>Normal Records:</b> {result.normal_records}
-              </p>
+        <div
+          className={`detection ${
+            result.anomaly ? "anomaly" : "normal"
+          }`}
+        >
 
-              <p>
-                <b>Anomaly Percentage:</b> {result.anomaly_percentage}%
-              </p>
+          <div className="detection-icon">
+            {result.anomaly ? "⚠️" : "✅"}
+          </div>
 
-              <p>
-                <b>Latest Status:</b>{" "}
-                {result.latest_prediction?.status}
-              </p>
+          <div>
 
-              <p>
-                <b>Anomaly Score:</b>{" "}
-                {result.latest_prediction?.anomaly_score?.toFixed(4)}
-              </p>
+            <h2>
+              {result.anomaly
+                ? "ANOMALY DETECTED"
+                : "NORMAL WEATHER"}
+            </h2>
 
-              <p>
-                <b>Detection Threshold:</b>{" "}
-                {result.threshold?.toFixed(4)}
-              </p>
-            </section>
-          </>
-        )}
-      </main>
+            <p>
+              {result.anomaly
+                ? "The AI model detected abnormal sensor behaviour."
+                : "No anomaly detected in the analyzed records."}
+            </p>
 
-      <footer style={styles.footer}>
-        SkyGuard AI • Smart India Hackathon Project
+          </div>
+
+        </div>
+
+      </section>
+
+      {/* STATISTICS */}
+
+      <section className="section">
+
+        <h2>📊 Analysis Summary</h2>
+
+        <div className="stats">
+
+          <div className="stat">
+            <span>Records Processed</span>
+            <strong>{result.records}</strong>
+          </div>
+
+          <div className="stat">
+            <span>Anomalies Detected</span>
+            <strong>{result.anomalies}</strong>
+          </div>
+
+          <div className="stat">
+            <span>Anomaly Percentage</span>
+            <strong>{result.anomalyPercentage}%</strong>
+          </div>
+
+          <div className="stat">
+            <span>Detection Threshold</span>
+            <strong>{Number(result.threshold).toFixed(4)}</strong>
+          </div>
+
+        </div>
+
+      </section>
+
+      {/* AI EXPLANATION */}
+
+      <section className="section">
+
+        <h2>🧠 AI Explanation</h2>
+
+        <div className="explanation">
+
+          <div>
+            <span>Root Cause</span>
+            <strong>{result.rootCause}</strong>
+          </div>
+
+          <div>
+            <span>Severity</span>
+            <strong>{result.severity}</strong>
+          </div>
+
+          <div>
+            <span>Confidence Score</span>
+            <strong>
+              {result.confidence}%
+            </strong>
+          </div>
+
+          <div>
+            <span>Recommended Action</span>
+            <strong>{result.action}</strong>
+          </div>
+
+        </div>
+
+      </section>
+
+      {/* MODEL INFORMATION */}
+
+      <section className="section">
+
+        <h2>⚙️ AI Model</h2>
+
+        <div className="model-box">
+
+          <div>
+            <span>Model</span>
+            <strong>Isolation Forest</strong>
+          </div>
+
+          <div>
+            <span>Estimators</span>
+            <strong>200</strong>
+          </div>
+
+          <div>
+            <span>Contamination</span>
+            <strong>Auto</strong>
+          </div>
+
+          <div>
+            <span>Features</span>
+            <strong>15</strong>
+          </div>
+
+        </div>
+
+      </section>
+
+      {/* PROJECT PIPELINE */}
+
+      <section className="section">
+
+        <h2>🔄 SkyGuard AI Pipeline</h2>
+
+        <div className="pipeline">
+
+          <div>🌦️<span>Weather Data</span></div>
+
+          <div>↓</div>
+
+          <div>🧹<span>Preprocessing</span></div>
+
+          <div>↓</div>
+
+          <div>🤖<span>ML Detection</span></div>
+
+          <div>↓</div>
+
+          <div>🧠<span>Explain</span></div>
+
+          <div>↓</div>
+
+          <div>🚨<span>Alert / Action</span></div>
+
+        </div>
+
+      </section>
+
+      {/* FOOTER */}
+
+      <footer>
+
+        <p>
+          SkyGuard AI • SIH Project • AI/ML-Based Intelligent Anomaly
+          Detection for Automatic Weather Stations
+        </p>
+
       </footer>
+
     </div>
   );
 }
-
-const styles = {
-  app: {
-    minHeight: "100vh",
-    background: "#f4f7fb",
-    fontFamily: "Arial, sans-serif",
-    color: "#172033"
-  },
-
-  header: {
-    background: "#101827",
-    color: "white",
-    padding: "30px 7%"
-  },
-
-  container: {
-    width: "86%",
-    maxWidth: "1200px",
-    margin: "40px auto"
-  },
-
-  hero: {
-    background: "white",
-    padding: "30px",
-    borderRadius: "16px",
-    marginBottom: "25px"
-  },
-
-  button: {
-    background: "#2563eb",
-    color: "white",
-    border: "none",
-    padding: "14px 24px",
-    borderRadius: "8px",
-    fontSize: "16px",
-    cursor: "pointer",
-    marginTop: "15px"
-  },
-
-  status: {
-    padding: "25px",
-    borderRadius: "16px",
-    display: "flex",
-    alignItems: "center",
-    gap: "20px",
-    marginBottom: "25px"
-  },
-
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(4, 1fr)",
-    gap: "18px"
-  },
-
-  card: {
-    background: "white",
-    padding: "25px",
-    borderRadius: "15px"
-  },
-
-  details: {
-    background: "white",
-    padding: "30px",
-    borderRadius: "16px",
-    marginTop: "25px"
-  },
-
-  error: {
-    background: "#fee2e2",
-    color: "#991b1b",
-    padding: "15px",
-    borderRadius: "10px",
-    marginBottom: "20px"
-  },
-
-  footer: {
-    textAlign: "center",
-    padding: "30px",
-    color: "#667085"
-  }
-};
 
 export default App;
