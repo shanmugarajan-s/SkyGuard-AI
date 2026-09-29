@@ -1080,4 +1080,15 @@ function App() {
     Updated: <strong>{weather.timestamp}</strong>
   </span>
 
-</div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      ...
+    </footer>
+  </div>
+);
+}
+
+export default App;
